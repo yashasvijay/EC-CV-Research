@@ -1,0 +1,11 @@
+{
+  "note": "Protocol reference; CLI flags are authoritative and saved in every run.",
+  "model": "yolo11n, raw float32 ONNX, batch=1, imgsz=640, nms=False",
+  "classes": [0],
+  "threads": 1,
+  "warmup": 10,
+  "max_interval": 10,
+  "min_confidence": 0.6,
+  "max_displacement": 0.15,
+  "repetitions": 5
+}

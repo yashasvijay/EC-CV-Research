@@ -1,0 +1,5 @@
+numpy>=1.26,<3
+opencv-python-headless>=4.9,<5
+onnxruntime>=1.18,<2
+scipy>=1.12,<2
+psutil>=5.9,<8

@@ -1,0 +1,16 @@
+.venv/
+.venv-eval/
+__pycache__/
+*.pyc
+.pytest_cache/
+/.DS_Store
+/:memory:.ses
+/.env
+/.env.*
+*.pt
+*.onnx
+*.zip
+data/*/*
+models/*
+results/*
+!**/.gitkeep

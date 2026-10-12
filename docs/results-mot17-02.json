@@ -1,0 +1,72 @@
+{
+  "sequence": "MOT17-02-FRCNN",
+  "repetitions_per_mode": 1,
+  "baseline": {
+    "frames": 600,
+    "throughput_fps": 3.8436409109061835,
+    "process_cpu_percent_mean": 96.21667019481615,
+    "sampled_peak_rss_mib": 258.5,
+    "detection_fraction": 1.0,
+    "pipeline_latency_ms": {
+      "mean": 252.55561394492057,
+      "p50": 242.29112499961047,
+      "p95": 325.3455211506661,
+      "p99": 446.6266649984026
+    },
+    "HOTA": 25.823170815809753,
+    "MOTA": 20.623217264948064,
+    "IDF1": 25.478774672086494,
+    "IDSW": 136
+  },
+  "adaptive": {
+    "frames": 600,
+    "throughput_fps": 4.210996174309932,
+    "process_cpu_percent_mean": 92.22928705729174,
+    "sampled_peak_rss_mib": 275.59375,
+    "detection_fraction": 0.8066666666666666,
+    "pipeline_latency_ms": {
+      "mean": 230.30761133845468,
+      "p50": 246.5135834972898,
+      "p95": 400.61862440088584,
+      "p99": 611.0722404094122
+    },
+    "HOTA": 25.940503042929418,
+    "MOTA": 20.827727248264356,
+    "IDF1": 25.847546410761428,
+    "IDSW": 112
+  },
+  "fps_increase_percent": 9.557481354759023,
+  "inference_reduction_percent": 19.333333333333336,
+  "adaptive_detector_calls": 484,
+  "model_sha256": "3586b83d3d87a0465a7df8a85b9c0fb7c8fbac4efacd1dbb5e1ae535707dbc4b",
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "python": "3.13.3",
+  "packages": {
+    "numpy": "2.5.3",
+    "opencv-python-headless": "4.14.0.94",
+    "onnxruntime": "1.30.0",
+    "scipy": "1.18.1",
+    "psutil": "7.2.2"
+  },
+  "providers": [
+    "CPUExecutionProvider"
+  ],
+  "parameters": {
+    "threads": 1,
+    "warmup": 10,
+    "max_interval": 10,
+    "min_confidence": 0.6,
+    "max_displacement": 0.15,
+    "classes": [
+      0
+    ],
+    "num_classes": 80
+  },
+  "ground_truth_sha256": "2e3ecb488da8886d3200d402b2b08890c6d2879923839444e9b74fa43a551440",
+  "evaluator_version": "1.3.0",
+  "evaluation_timestamp_utc": {
+    "baseline": "2026-10-12T22:12:13.936144+00:00",
+    "adaptive": "2026-10-12T22:12:20.257650+00:00"
+  },
+  "scope": "Single timing repetition, full MOT17-02-FRCNN sequence; measured on host CPU, not an edge energy experiment."
+}

@@ -1,0 +1,15 @@
+flatbuffers==25.12.19
+iniconfig==2.3.0
+ml_dtypes==0.6.0
+numpy==2.5.3
+onnx==1.23.1
+onnxruntime==1.30.0
+opencv-python-headless==4.14.0.94
+packaging==26.3
+pluggy==1.6.0
+protobuf==7.36.2
+psutil==7.2.2
+Pygments==2.21.0
+pytest==9.1.1
+scipy==1.18.1
+typing_extensions==4.16.0

@@ -1,0 +1,22 @@
+{
+  "source_page": "https://motchallenge.net/data/MOT17/",
+  "archive_url": "https://motchallenge.net/data/MOT17.zip",
+  "archive_path": "/Users/yashasvijay/Desktop/ECCV_Research/data/raw/MOT17.zip",
+  "archive_bytes": 5860214001,
+  "archive_sha256": "7b486bb2af5cfedbfabc020511ff933a3edbf12182ce4985eec1a210f20f9e06",
+  "sequence": {
+    "name": "MOT17-02-FRCNN",
+    "frame_rate": 30.0,
+    "length": 600,
+    "width": 1920,
+    "height": 1080,
+    "image_dir": "img1",
+    "image_ext": ".jpg",
+    "path": "/Users/yashasvijay/Desktop/ECCV_Research/data/raw/MOT17/train/MOT17-02-FRCNN"
+  },
+  "validated_decoded_frames": 600,
+  "ground_truth_rows": 30003,
+  "ground_truth_unique_ids": 83,
+  "ground_truth_sha256": "2e3ecb488da8886d3200d402b2b08890c6d2879923839444e9b74fa43a551440",
+  "extracted_entry_crc_verified": true
+}

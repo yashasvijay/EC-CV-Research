@@ -1,0 +1,4 @@
+# Separate .venv-eval: keep GUI OpenCV/plotting dependencies out of benchmarks.
+trackeval==1.3.0
+opencv-python>=4.11,<5
+numpy>=2.3.2,<3
