@@ -61,6 +61,7 @@ HOTA/MOTA/IDF1 use percentage units; CPU 100% represents one logical core.
 │   ├── __init__.py
 │   ├── run_phase1.py                # one sequence and one mode per process
 │   ├── evaluate_tracking.py         # TrackEval -> summary.json
+│   ├── grid_search.py               # adaptive hyperparameters and Pareto frontiers
 │   ├── ablation_fixed_interval.py    # K=1,2,5,10,15, repeated runs
 │   └── compare.py                   # repeated-run summaries
 ├── tests/
@@ -79,8 +80,7 @@ HOTA/MOTA/IDF1 use percentage units; CPU 100% represents one logical core.
 └── notebooks/
 ```
 
-Planned additions (not implemented): `src/datasets/visdrone.py`,
-`scripts/grid_search.py`, `scripts/profile.py`, `scripts/quantize.py`,
+Planned additions (not implemented): `src/datasets/visdrone.py`, `scripts/profile.py`, `scripts/quantize.py`,
 `csrc/CMakeLists.txt`, `csrc/bindings.cpp`, `csrc/include/gating.hpp`,
 `csrc/src/gating.cpp`, `reports/ablations/`, and `reports/paper/`.
 
@@ -265,6 +265,14 @@ VisDrone requires its own annotation/class adapter and protocol and remains
 outside this Week 2 implementation. Synthetic fixtures verify implementation
 correctness; the separately documented MOT17-02 experiment provides real-sequence
 accuracy measurements. Edge energy remains unmeasured.
+
+## Phase 2: adaptive grid search
+
+`scripts/grid_search.py` sweeps 48 configurations across maximum interval,
+confidence and displacement. It saves per-run performance, optional TrackEval
+accuracy, and Pareto JSON/CSV exports under `results/grid_search/`. Searches
+support interruptions and resume. See [the grid-search guide](docs/grid-search.md)
+for the command, quality limits, output fields and experimental protocol.
 
 ## Instrumentation and limitations
 

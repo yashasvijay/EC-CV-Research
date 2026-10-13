@@ -1,0 +1,5 @@
+cmake>=3.24,<5
+pybind11>=2.13,<4
+numpy>=1.26,<3
+pytest>=8,<10
+psutil>=5.9,<8

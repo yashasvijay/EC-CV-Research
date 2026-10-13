@@ -1,0 +1,118 @@
+--- a/src/pipeline.py
++++ b/src/pipeline.py
+@@ -6,7 +6,7 @@
+ 
+ class Pipeline:
+     def __init__(self, detector, mode="adaptive", max_interval=10,
+-                 min_confidence=0.6, max_displacement=0.15):
++                 min_confidence=0.6, max_displacement=0.15, *, use_native_gating=False):
+         if mode not in ("baseline", "adaptive", "fixed") or max_interval < 1:
+             raise ValueError("Invalid mode or detection interval")
+         self.detector, self.mode = detector, mode
+@@ -14,6 +14,11 @@
+         self.min_confidence, self.max_displacement = min_confidence, max_displacement
+         self.tracker = LKTracker()
+         self.frame_id, self.last_detection = 0, 0
++        self.use_native_gating = use_native_gating
++        self._native_engine = None
++        if use_native_gating:
++            from .native_gating import make_engine
++            self._native_engine = make_engine(max_interval, min_confidence, max_displacement)
+ 
+     def step(self, frame):
+         start = perf_counter()
+@@ -22,21 +27,28 @@
+         self.tracker.predict(gray)
+         predicted = perf_counter()
+         tracks = self.tracker.visible()
+-        confidence = min((t.confidence for t in tracks), default=0.0)
+-        displacement = max((t.displacement for t in tracks), default=0.0)
+-        reason = None
+-        if self.mode == "baseline":
+-            reason = "baseline"
+-        elif self.mode == "fixed":
+-            reason = "fixed_interval" if (self.frame_id - 1) % self.max_interval == 0 else None
+-        elif not tracks:
+-            reason = "no_tracks"
+-        elif self.frame_id - self.last_detection >= self.max_interval:
+-            reason = "max_interval"
+-        elif confidence < self.min_confidence:
+-            reason = "confidence"
+-        elif displacement > self.max_displacement:
+-            reason = "displacement"
++        gated = predicted
++        if self._native_engine is not None:
++            from .native_gating import native_decision
++            reason, confidence, displacement = native_decision(
++                self._native_engine, tracks, self.frame_id, self.last_detection, self.mode)
++            gated = perf_counter()
++        else:
++            confidence = min((t.confidence for t in tracks), default=0.0)
++            displacement = max((t.displacement for t in tracks), default=0.0)
++            reason = None
++            if self.mode == "baseline":
++                reason = "baseline"
++            elif self.mode == "fixed":
++                reason = "fixed_interval" if (self.frame_id - 1) % self.max_interval == 0 else None
++            elif not tracks:
++                reason = "no_tracks"
++            elif self.frame_id - self.last_detection >= self.max_interval:
++                reason = "max_interval"
++            elif confidence < self.min_confidence:
++                reason = "confidence"
++            elif displacement > self.max_displacement:
++                reason = "displacement"
+         detector_ms = update_ms = 0.0
+         if reason:
+             before = perf_counter()
+@@ -52,6 +64,8 @@
+             "displacement_fraction": displacement,
+             "flow_ms": (predicted - start) * 1000, "detector_ms": detector_ms,
+             "association_ms": update_ms, "pipeline_ms": (perf_counter() - start) * 1000,
++            **({"gating_backend": "native", "gating_ms": (gated - predicted) * 1000}
++               if self._native_engine is not None else {}),
+         }
+ 
+ 
+--- a/scripts/run_phase1.py
++++ b/scripts/run_phase1.py
+@@ -43,6 +43,8 @@
+     p.add_argument("--source", required=True, help="video, image directory, or MOT17 sequence directory")
+     p.add_argument("--output", required=True, help="new directory, never overwritten")
+     p.add_argument("--mode", choices=["baseline", "adaptive", "fixed"], required=True)
++    p.add_argument("--use-native-gating", action="store_true",
++                   help="opt in to C++ scheduling decisions; requires edge_gating on PYTHONPATH")
+     p.add_argument("--tracker", choices=["lk", "sort"], default="lk")
+     p.add_argument("--max-age", type=int, default=30, help="SORT lifetime in video frames")
+     p.add_argument("--min-hits", type=int, default=1)
+@@ -62,6 +64,8 @@
+         p.error("Invalid gate thresholds")
+     if args.max_interval < 1 or args.max_age < 0 or args.min_hits < 1 or not 0 < args.match_iou <= 1:
+         p.error("Invalid interval or SORT parameters")
++    if args.use_native_gating and args.tracker != "lk":
++        p.error("--use-native-gating currently supports the LK pipeline only")
+     if args.tracker == "sort" and args.mode == "adaptive":
+         p.error("Adaptive confidence gating currently requires --tracker lk")
+     source_path = Path(args.source).resolve()
+@@ -85,7 +89,8 @@
+                                 args.max_age, args.min_hits, args.match_iou)
+     else:
+         pipeline = Pipeline(detector, args.mode, args.max_interval,
+-                            args.min_confidence, args.max_displacement)
++                            args.min_confidence, args.max_displacement,
++                            use_native_gating=args.use_native_gating)
+     metadata = vars(args) | {
+         "model_sha256": hashlib.sha256(Path(args.model).read_bytes()).hexdigest(),
+         "packages": {name: version(name) for name in
+@@ -97,6 +102,11 @@
+                                 else "translation LK + class-aware Hungarian IoU"),
+         "sequence": sequence.metadata if sequence else None,
+     }
++    if args.use_native_gating:
++        from src.native_gating import load_native
++        native = load_native()
++        metadata.update(gating_backend="native", native_module_version=native.__version__,
++                        native_module_sha256=hashlib.sha256(Path(native.__file__).read_bytes()).hexdigest())
+     benchmark = Benchmark(args.output, metadata)
+     source = make_frames()
+     benchmark.metadata["status"] = "partial"

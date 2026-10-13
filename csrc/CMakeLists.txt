@@ -1,0 +1,57 @@
+cmake_minimum_required(VERSION 3.24)
+
+# Default to a native Apple Silicon build; an explicit architecture overrides it.
+if(APPLE AND NOT DEFINED CMAKE_OSX_ARCHITECTURES)
+    execute_process(COMMAND uname -m OUTPUT_VARIABLE HOST_ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(HOST_ARCH STREQUAL "arm64")
+        set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "Target macOS architecture")
+    endif()
+endif()
+
+project(edge_gating VERSION 0.1.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+option(GATING_BUILD_PYTHON "Build the pybind11 Python module" ON)
+option(GATING_BUILD_TESTS "Build standalone C++ correctness tests" ON)
+
+add_library(gating_core STATIC src/gating.cpp)
+target_include_directories(gating_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set_target_properties(gating_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(gating_core PRIVATE -Wall -Wextra -Wpedantic -ffp-contract=off)
+    # No fast-math: finite checks and threshold boundaries must remain meaningful.
+endif()
+
+if(GATING_BUILD_PYTHON)
+    set(PYBIND11_FINDPYTHON ON)
+    find_package(Python 3.11 COMPONENTS Interpreter Development.Module REQUIRED)
+    if(NOT DEFINED pybind11_DIR)
+        execute_process(COMMAND "${Python_EXECUTABLE}" -m pybind11 --cmakedir
+                        OUTPUT_VARIABLE PYBIND_CMAKE_DIR OUTPUT_STRIP_TRAILING_WHITESPACE
+                        RESULT_VARIABLE PYBIND_RESULT)
+        if(NOT PYBIND_RESULT EQUAL 0)
+            message(FATAL_ERROR "Install pybind11 in the selected Python or pass -Dpybind11_DIR=...")
+        endif()
+        set(pybind11_DIR "${PYBIND_CMAKE_DIR}")
+    endif()
+    find_package(pybind11 2.13 CONFIG REQUIRED)
+    pybind11_add_module(edge_gating MODULE NO_EXTRAS bindings.cpp)
+    target_link_libraries(edge_gating PRIVATE gating_core)
+    set_target_properties(edge_gating PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python")
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        target_compile_options(edge_gating PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    install(TARGETS edge_gating LIBRARY DESTINATION . RUNTIME DESTINATION .)
+endif()
+
+if(GATING_BUILD_TESTS)
+    enable_testing()
+    add_executable(gating_core_test tests/test_gating.cpp)
+    target_link_libraries(gating_core_test PRIVATE gating_core)
+    add_test(NAME gating_core_correctness COMMAND gating_core_test)
+endif()
