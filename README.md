@@ -6,7 +6,7 @@ The project studies throughput, latency and tracking fidelity under constrained 
 
 ## SLO verification table
 
-The saved **MOT17-02-FRCNN, FixedKPolicy(3), 600-frame, 30 Hz paced replay** passed its run-level timing contract:
+The saved **MOT17-02-FRCNN, FixedKPolicy(3), 600-frame, 30 Hz paced replay** passed its original version-1 run-level timing contract:
 
 | Metric | Verified measurement | Target | Timing status |
 |---|---:|---:|---|
@@ -15,7 +15,7 @@ The saved **MOT17-02-FRCNN, FixedKPolicy(3), 600-frame, 30 Hz paced replay** pas
 | Capture-to-output p99 | **5.61 ms** | <33 ms | PASS |
 | Deadline misses | **0.17%** (1/600; fraction 0.001667) | <1.0% | PASS |
 
-**This run published zero tracks in all 600 frames.** Detector freshness was null; none of the completed correction proposals was fused into a live track. These numbers demonstrate timely frame publication under this workload, not successful 30 FPS tracking. HOTA/MOTA/IDF1 remain unevaluated. Physical-camera latency, repeated-run robustness, power savings and tracking fidelity are not established.
+**This run published zero tracks in all 600 frames and fails the current version-2 verifier.** Detector freshness was null; none of the completed correction proposals was fused into a live track. These numbers demonstrate timely frame publication under this workload, not successful 30 FPS tracking. HOTA/MOTA/IDF1 remain unevaluated. Physical-camera latency, repeated-run robustness, power savings and tracking fidelity are not established.
 
 The detector completed 123 calls; 77 pending requests were superseded. Result rejection counts were 88 for target lag, 28 for replay budget, five for deadline headroom and one for commit budget. Detector service averaged 82.82 ms. Process CPU averaged 110.67% (100% = one logical core); sampled peak RSS was 328.94 MiB. Idle preflight averaged 3.60% host CPU; thermal conditions were uncontrolled. Throughput is capped at source rate by the verifier; the runtime's raw short-window estimate was 30.0419 FPS.
 
@@ -89,3 +89,7 @@ The original synchronous MOT17-02 comparison measured 3.84→4.21 FPS, 600→484
 Ruff and strict mypy cover the source tree; pytest includes deterministic async lifecycle/overload/fusion tests, ROI containment, scheduler boundaries, synthetic ONNX/TrackEval integration, and strict SLO failure cases. Optional native tests require the separate extension build. The publication validation records the current full-suite outcome; older reports retain their original test counts. CI configuration and local checks are distinct from a remotely completed GitHub Actions run.
 
 Publication check (2026-10-18): `make test` passed **137 tests**; `make lint` passed Ruff and strict mypy across **26 source modules**. See [validation record](reports/publication-validation/validation.json). These software checks do not qualify tracking accuracy.
+
+## Cold-start correction
+
+The runtime now bootstraps supported tracks synchronously when no live tracks exist and batches LK across track points during propagation/replay/commit. Bootstrap cost remains measured. The effective replay cap reserves time inside the commit-lag window. Contract version 2 requires populated outputs and a useful background-fusion ratio of at least 10%; bootstrap-only and empty-output runs fail. Regression checks pass, but a corrected real-hardware benchmark and HOTA/MOTA evaluation remain pending.

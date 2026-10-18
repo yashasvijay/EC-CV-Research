@@ -10,7 +10,8 @@ from ..schedulers import EventKind, SchedulerEvent
 from ..sort_tracker import KalmanBox, pairwise_iou
 from .packets import Clock, Detector, DetectionRequest, DetectionResult, RuntimeConfig, _Anchor, _Correction
 from .history import _History
-from .motion import _owned, _seed, _advance_points
+from .motion import _owned, _seed
+from ..motion import advance_batch
 from .mailbox import _offer_latest
 
 
@@ -41,6 +42,8 @@ class DetectionWorker(threading.Thread):
         self.lock = threading.Lock()
         self.counts: Counter[str] = Counter()
         self.events: queue.Queue[SchedulerEvent] = queue.Queue(maxsize=256)
+        self.inference_lock = threading.Lock()
+        self.detector: Detector | None = None
         self.latest_started = 0
         self.service_ms: deque[float] = deque(maxlen=config.telemetry_frames)
         self.queue_wait_ms: deque[float] = deque(maxlen=config.telemetry_frames)
@@ -98,9 +101,22 @@ class DetectionWorker(threading.Thread):
         self.count("detections_capped", max(0, len(detections) - self.config.max_tracks))
         return _owned(detections[order[: self.config.max_tracks]])
 
+    def detect_sync(self, image: np.ndarray) -> np.ndarray:
+        """Serialize an explicit cold-start inference with background detector use."""
+        if self.detector is None or not self.ready.is_set():
+            raise RuntimeError("Detector is not ready for bootstrap")
+        self.count("bootstrap_started")
+        with self.inference_lock:
+            if self.stop_requested.is_set():
+                raise RuntimeError("Detector is stopping")
+            detections = self._detections(self.detector(image), image.shape)
+        self.count("bootstrap_completed")
+        return detections
+
     def _prepare(
         self, request: DetectionRequest, detections: np.ndarray, started: int, completed: int
     ) -> DetectionResult:
+        preparation_start = self.clock()
         lease = self.history.lease(request.source.frame_idx)
         reason = None
         corrections: list[_Correction] = []
@@ -120,60 +136,64 @@ class DetectionWorker(threading.Thread):
                     valid = (overlaps >= self.config.match_iou) & (classes == detections[None, :, 5])
                     rows, cols = linear_sum_assignment(np.where(valid, 1 - overlaps, 1e6))
                     matched = {int(j): request.anchors[i] for i, j in zip(rows, cols) if valid[i, j]}
-                preparation_start = self.clock()
+                budget = self.config.effective_replay_budget_ms
+                boxes = [d[:4].copy() for d in detections]
+                points = [_seed(lease.frames[0].gray, box, self.config) for box in boxes]
+                confidence = [1.0 if len(p) >= self.config.min_points else 0.0 for p in points]
+                filters: list[KalmanBox | None] = []
                 for j, detection in enumerate(detections):
+                    filter_ = KalmanBox(detection[:4]) if self.config.covariance else None
+                    anchor = matched.get(j)
+                    if filter_ is not None and anchor is not None and anchor.x is not None:
+                        assert anchor.covariance is not None
+                        filter_.x, filter_.P = anchor.x.copy(), anchor.covariance.copy()
+                        filter_.update(detection[:4])
+                    filters.append(filter_)
+                for previous, current in zip(lease.frames, lease.frames[1:]):
                     if self.stop_requested.is_set() or self.clock() > request.expiry_ns:
                         reason = "expired"
                         break
-                    if (self.clock() - preparation_start) / 1e6 > self.config.replay_budget_ms:
+                    if (self.clock() - preparation_start) / 1e6 >= budget:
                         reason = "replay_budget"
                         break
-                    anchor = matched.get(j)
-                    box = detection[:4].copy()
-                    points = _seed(lease.frames[0].gray, box, self.config)
-                    confidence = 1.0 if len(points) >= self.config.min_points else 0.0
-                    filter_ = None
-                    if self.config.covariance:
-                        filter_ = KalmanBox(box)
-                        if anchor is not None and anchor.x is not None:
-                            filter_.x = anchor.x.copy()
-                            assert anchor.covariance is not None
-                            filter_.P = anchor.covariance.copy()
-                            filter_.update(detection[:4])
-                    for previous, current in zip(lease.frames, lease.frames[1:]):
-                        if (
-                            self.stop_requested.is_set()
-                            or self.clock() > request.expiry_ns
-                            or (self.clock() - preparation_start) / 1e6 > self.config.replay_budget_ms
-                        ):
-                            reason = "replay_budget"
-                            break
-                        box, points, quality = _advance_points(
-                            previous.gray, current.gray, points, box, self.config
-                        )
-                        confidence *= quality
+                    updates = advance_batch(
+                        previous.gray,
+                        current.gray,
+                        boxes,
+                        points,
+                        min_points=self.config.min_points,
+                        fb_threshold=self.config.fb_threshold,
+                    )
+                    for j, update in enumerate(updates):
+                        boxes[j], points[j] = update.box, update.points
+                        confidence[j] *= update.quality
+                        filter_ = filters[j]
                         if filter_ is not None:
                             filter_.predict(
                                 (current.source_ns - previous.source_ns) / 1e9 * self.config.frame_rate
                             )
-                    if reason is not None:
-                        break
-                    # Births require support; matched tracks may accept a residual without refresh points.
-                    if anchor is None and len(points) < self.config.min_points:
-                        self.count("unsupported_births")
-                        continue
-                    corrections.append(
-                        _Correction(
-                            _owned(np.r_[box, detection[4:]].astype(np.float32)),
-                            _owned(points),
-                            confidence,
-                            anchor.track_id if anchor else None,
-                            anchor.revision if anchor else None,
-                            _owned(detection[:4] - np.asarray(anchor.box)) if anchor else None,
-                            _owned(filter_.x) if filter_ else None,
-                            _owned(filter_.P) if filter_ else None,
+                if self.clock() > request.expiry_ns:
+                    reason = "expired"
+                elif (self.clock() - preparation_start) / 1e6 >= budget:
+                    reason = "replay_budget"
+                if reason is None:
+                    for j, detection in enumerate(detections):
+                        anchor, filter_ = matched.get(j), filters[j]
+                        if anchor is None and len(points[j]) < self.config.min_points:
+                            self.count("unsupported_births")
+                            continue
+                        corrections.append(
+                            _Correction(
+                                _owned(np.r_[boxes[j], detection[4:]].astype(np.float32)),
+                                _owned(points[j]),
+                                confidence[j],
+                                anchor.track_id if anchor else None,
+                                anchor.revision if anchor else None,
+                                _owned(detection[:4] - np.asarray(anchor.box)) if anchor else None,
+                                _owned(filter_.x) if filter_ else None,
+                                _owned(filter_.P) if filter_ else None,
+                            )
                         )
-                    )
                 if reason is None:
                     target_lease = self.history.lease(target, target)
                     if target_lease is None:
@@ -207,6 +227,7 @@ class DetectionWorker(threading.Thread):
             detector = self.factory()
             if not callable(detector):
                 raise TypeError("detector_factory must return a callable detector")
+            self.detector = detector
             self.ready.set()
             while not self.stop_requested.is_set():
                 try:
@@ -229,7 +250,8 @@ class DetectionWorker(threading.Thread):
                         self.queue_wait_ms.append((started - request.admitted_ns) / 1e6)
                     self.count("started")
                     self.emit(EventKind.STARTED, request)
-                    detections = self._detections(detector(request.image), request.source.gray.shape)
+                    with self.inference_lock:
+                        detections = self._detections(detector(request.image), request.source.gray.shape)
                     completed = self.clock()
                     with self.lock:
                         self.service_ms.append((completed - started) / 1e6)

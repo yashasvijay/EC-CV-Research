@@ -50,6 +50,7 @@ def load_contract(path: Path) -> dict[str, Any]:
         "deadline_ms",
         "deadline_miss_max_fraction",
         "minimum_frames",
+        "minimum_fused_detection_ratio",
     }
     if not isinstance(contract, dict) or set(contract) != expected:
         raise ValueError("Unexpected SLO contract fields")
@@ -61,8 +62,10 @@ def load_contract(path: Path) -> dict[str, Any]:
             or value <= 0
         ):
             raise ValueError("Contract values must be finite and positive")
-    if contract["version"] != 1 or type(contract["minimum_frames"]) is not int:
+    if contract["version"] != 2 or type(contract["minimum_frames"]) is not int:
         raise ValueError("Unsupported contract version or frame count")
+    if contract["minimum_fused_detection_ratio"] > 1:
+        raise ValueError("Fusion ratio threshold exceeds one")
     if contract["deadline_miss_max_fraction"] >= 1 or contract["throughput_min_fps"] > contract["camera_fps"]:
         raise ValueError("Inconsistent SLO thresholds")
     return contract
@@ -114,6 +117,37 @@ def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[s
             ),
         }
         issues.extend(name for name, valid in conditions.items() if not valid)
+        track_frames = sum(r.get("tracks", 0) > 0 for r in rows)
+        if any(type(r.get("tracks")) is not int or r["tracks"] < 0 for r in rows):
+            raise ValueError("Invalid track counts")
+        if not isinstance(summary.get("worker_counts"), dict) or not isinstance(summary.get("counts"), dict):
+            raise ValueError("Missing detector/fusion counters")
+        completed = summary.get("worker_counts", {}).get("completed", 0)
+        fused = summary.get("counts", {}).get("fused_with_tracks", 0)
+        useful_rows = sum(r.get("accepted_detection_update") is True for r in rows)
+        if (
+            type(completed) is not int
+            or type(fused) is not int
+            or completed < 0
+            or fused < 0
+            or fused > completed
+            or fused != useful_rows
+        ):
+            raise ValueError("Missing/inconsistent useful fusion counters")
+        checks["active_tracks"] = {
+            "status": "PASS" if track_frames > 0 else "FAIL",
+            "measured": track_frames,
+            "operator": ">",
+            "threshold": 0,
+        }
+        checks["fused_detection_ratio"] = {
+            "status": "PASS"
+            if completed > 0 and fused / completed >= contract["minimum_fused_detection_ratio"]
+            else "FAIL",
+            "measured": fused / completed if completed else 0.0,
+            "operator": ">=",
+            "threshold": contract["minimum_fused_detection_ratio"],
+        }
         checks["measurement_integrity"] = {
             "status": "FAIL" if issues else "PASS",
             "issues": issues,
@@ -162,6 +196,8 @@ def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[s
                 "p95_e2e_ms",
                 "p99_e2e_ms",
                 "deadline_miss_fraction",
+                "active_tracks",
+                "fused_detection_ratio",
             ]
         }
         diagnostics = {}
@@ -169,7 +205,7 @@ def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[s
         "status": "PASS" if all(c["status"] == "PASS" for c in checks.values()) else "FAIL",
         "checks": checks,
         "diagnostics": diagnostics,
-        "qualification": "run-level latency only; tracking accuracy and production camera qualification are separate",
+        "qualification": "Run-level timing and useful-fusion checks; accuracy and physical-camera qualification remain separate",
     }
 
 
@@ -336,6 +372,8 @@ def main(argv: list[str] | None = None) -> int:
                             "p95_e2e_ms",
                             "p99_e2e_ms",
                             "deadline_miss_fraction",
+                            "active_tracks",
+                            "fused_detection_ratio",
                         ]
                     },
                 },

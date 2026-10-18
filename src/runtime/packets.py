@@ -42,6 +42,7 @@ class RuntimeConfig:
     max_track_age_ms: float = 1500.0
     telemetry_frames: int = 4096
     covariance: bool = True
+    synchronous_bootstrap: bool = True
     offline: bool = False
     epoch: str = "default"
 
@@ -78,10 +79,17 @@ class RuntimeConfig:
         object.__setattr__(self, "max_commit_frames", integer(self.max_commit_frames, "max_commit_frames"))
         if self.max_points < self.min_points:
             raise ValueError("max_points must be >= min_points")
-        if not isinstance(self.covariance, bool) or not isinstance(self.offline, bool):
+        if not all(isinstance(v, bool) for v in (self.covariance, self.offline, self.synchronous_bootstrap)):
             raise TypeError("covariance/offline must be bool")
         if not isinstance(self.epoch, str) or not self.epoch:
             raise ValueError("epoch must be nonempty")
+
+    @property
+    def effective_replay_budget_ms(self) -> float:
+        """Reserve a pickup interval inside the main thread's target-lag window."""
+        window = self.max_commit_frames * 1000 / self.frame_rate
+        reserve = min(1000 / self.frame_rate, window / 2)
+        return min(self.replay_budget_ms, max(0.0, window - reserve))
 
 
 @dataclass(frozen=True)

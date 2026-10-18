@@ -22,7 +22,8 @@ def export_data(count=600, latency=5.0):
                 "capture_ns": capture,
                 "published_ns": capture + int(latency * 1e6),
                 "capture_to_output_ms": latency,
-                "tracks": 0,
+                "tracks": 1,
+                "accepted_detection_update": i < 3,
             }
         )
     summary = {
@@ -33,6 +34,8 @@ def export_data(count=600, latency=5.0):
         "main_error": None,
         "frames": count,
         "source_frames": count,
+        "counts": {"fused_with_tracks": min(3, count)},
+        "worker_counts": {"completed": 30},
         "wall_seconds": count / 30,
         "config": {"frame_rate": 30.0, "deadline_ms": 33.0},
     }
@@ -45,7 +48,7 @@ def test_contract_and_successful_measurement(contract):
     assert result["status"] == "PASS"
     assert result["checks"]["throughput_fps"]["measured"] == 30
     assert result["checks"]["p99_e2e_ms"]["measured"] == 5
-    assert result["diagnostics"]["frames_with_tracks"] == 0
+    assert result["diagnostics"]["frames_with_tracks"] == 600
     assert "accuracy" in result["qualification"]
 
 
@@ -160,3 +163,34 @@ def test_busy_preflight_defers_without_inference(tmp_path, monkeypatch):
     monkeypatch.setattr(verifier.time, "sleep", lambda _: None)
     monkeypatch.setattr(verifier.psutil, "cpu_percent", lambda interval: 20.0)
     assert verifier.idle_check()["passed"] is False
+
+
+def test_empty_output_and_bootstrap_only_cannot_pass(contract):
+    summary, rows = export_data()
+    summary["counts"] = {"bootstrap_successes": 1, "fused_with_tracks": 0}
+    for row in rows:
+        row["accepted_detection_update"] = False
+    result = verifier.assess(summary, rows, contract)
+    assert result["checks"]["active_tracks"]["status"] == "PASS"
+    assert result["checks"]["fused_detection_ratio"]["status"] == "FAIL"
+    for row in rows:
+        row["tracks"] = 0
+    result = verifier.assess(summary, rows, contract)
+    assert result["status"] == "FAIL"
+    assert result["checks"]["active_tracks"]["status"] == "FAIL"
+
+
+def test_fusion_counter_cannot_exceed_accepted_frame_ledger(contract):
+    summary, rows = export_data()
+    summary["counts"]["fused_with_tracks"] = 4
+    assert verifier.assess(summary, rows, contract)["status"] == "FAIL"
+
+
+def test_invalid_fusion_ratio_contract_is_rejected(tmp_path):
+    original = Path("docs/DESIGN.md").read_text()
+    path = tmp_path / "design.md"
+    path.write_text(
+        original.replace('"minimum_fused_detection_ratio": 0.1', '"minimum_fused_detection_ratio": 1.1')
+    )
+    with pytest.raises(ValueError, match="Fusion ratio"):
+        verifier.load_contract(path)

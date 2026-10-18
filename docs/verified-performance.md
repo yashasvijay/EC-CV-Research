@@ -34,3 +34,7 @@ The completed 48-configuration grid and Pareto figure use the earlier synchronou
 ## Verification commands
 
 Use the quick start in [README](../README.md). For a new run choose a new output directory. `python -m scripts.verify_slos --run-dir results/slos/mot17-02-fixed3/runtime --output NEW_DIRECTORY` verifies saved timing only. Full causal/deadline TrackEval uses `scripts.run_async_evaluation` with a complete MOT17 sequence; the four-policy sweep uses `scripts.ablation_policies`. See [engineering commands](engineering.md).
+
+## Contract-v2 invalidation and correction
+
+The current verifier now requires live track output and useful background fusion ratio ≥10%. The historical empty-output run fails both gates. Default synchronous bootstrap and batched LK replay/commit have been implemented and pass regression tests; no replacement hardware result is yet claimed. Bootstrap latency is included, not removed as warmup. See [current runtime behavior](async-runtime.md).

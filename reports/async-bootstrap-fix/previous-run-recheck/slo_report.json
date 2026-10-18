@@ -1,0 +1,87 @@
+{
+  "status": "FAIL",
+  "checks": {
+    "active_tracks": {
+      "status": "FAIL",
+      "measured": 0,
+      "operator": ">",
+      "threshold": 0
+    },
+    "fused_detection_ratio": {
+      "status": "FAIL",
+      "measured": 0.0,
+      "operator": ">=",
+      "threshold": 0.1
+    },
+    "measurement_integrity": {
+      "status": "PASS",
+      "issues": [],
+      "frames": 600
+    },
+    "throughput_fps": {
+      "status": "PASS",
+      "measured": 30.0,
+      "operator": ">=",
+      "threshold": 30.0
+    },
+    "p95_e2e_ms": {
+      "status": "PASS",
+      "measured": 5.5648979,
+      "operator": "<",
+      "threshold": 33.0
+    },
+    "p99_e2e_ms": {
+      "status": "PASS",
+      "measured": 5.60960342,
+      "operator": "<",
+      "threshold": 33.0
+    },
+    "deadline_miss_fraction": {
+      "status": "PASS",
+      "measured": 0.0016666666666666668,
+      "operator": "<",
+      "threshold": 0.01
+    }
+  },
+  "diagnostics": {
+    "time_to_first_track_ms": null,
+    "max_request_queue_depth": 1,
+    "max_result_queue_depth": 0,
+    "missing_frames": 0,
+    "frames_with_tracks": 0,
+    "first_track_frame": null,
+    "process_cpu_percent_mean": 110.66518216437677,
+    "sampled_peak_rss_mib": 328.9375,
+    "worker_counts": {
+      "started": 123,
+      "detections_capped": 0,
+      "completed": 123,
+      "published": 122,
+      "unsupported_births": 4,
+      "shutdown_discarded": 1
+    },
+    "detector_freshness_ms": null
+  },
+  "qualification": "Run-level timing and useful-fusion checks; accuracy and physical-camera qualification remain separate",
+  "timestamp_utc": "2026-10-18T20:47:20.517354+00:00",
+  "contract": {
+    "version": 2,
+    "camera_fps": 30.0,
+    "throughput_min_fps": 30.0,
+    "p95_e2e_max_ms": 33.0,
+    "p99_e2e_max_ms": 33.0,
+    "deadline_ms": 33.0,
+    "deadline_miss_max_fraction": 0.01,
+    "minimum_frames": 600,
+    "minimum_fused_detection_ratio": 0.1
+  },
+  "design_sha256": "5b4414c5dccdcc9a452d3846a7a5fc2c587f154b4ffc5017e51f5739da286b8b",
+  "design_path": "/Users/yashasvijay/Desktop/ECCV_Research/docs/DESIGN.md",
+  "verifier_sha256": "41fbc9fb086901b5a1482193cac3eda977c7c05f194b93e73dff3d1d4fb098d0",
+  "mode": "saved_export",
+  "input_hashes": {
+    "summary.json": "126d1066f26c0b794cc6caf7a9fc0f09a0485e32f0f3e3c0bd9b90e3d64ffa10",
+    "frames.jsonl": "6123a0dd8fec40ff37bf7020285b86c501859537e836072443426502affcfca1"
+  },
+  "runtime_directory": "/Users/yashasvijay/Desktop/ECCV_Research/results/slos/mot17-02-fixed3/runtime"
+}

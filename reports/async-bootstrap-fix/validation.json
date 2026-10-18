@@ -1,0 +1,23 @@
+{
+  "status": "validated",
+  "full_suite_passed": 144,
+  "final_targeted_tests_passed": 42,
+  "final_lint": "passed",
+  "strict_mypy_source_files": 27,
+  "historical_empty_run": "FAIL under v2 active-track and fusion-ratio gates",
+  "historical_artifacts_preserved": true,
+  "hardware_performance": "not remeasured",
+  "pyramid_binding": "installed Python OpenCV rejects prebuilt pyramid tuples; native forward/backward LK batches all track points",
+  "source_sha256": {
+    "src/async_pipeline.py": "14759cdde2811e41246a9df729a62aefea6ecafaeec17da44f35abcc9819219a",
+    "src/motion.py": "e844f8d3b9b70ff70c168d48a4dd92da6cfdf49d01488875c66090cceecbc723",
+    "src/runtime/detector_worker.py": "efcf34c07306833369800151d760b120eda9eb1797b494952bcefcb4a8b66d38",
+    "src/runtime/motion.py": "a6e3f9e0378d1c691693f75c8902e87e0f57d48a1fc469f208818468f02924d4",
+    "src/runtime/packets.py": "e4a5b3f3ee6614195f5aa7dc93fb764ffac164ca52692ae281e564bf56f53e9d",
+    "src/tracker.py": "1d9b191987d9984cf33bbd485d38ae0ae5912ffb97b84aef1beacd99353ea95d",
+    "scripts/verify_slos.py": "0d1e7283e903a6d54c75d36dbd6a6faef9d270a44d3fce2c08dd074d8a15534b",
+    "docs/DESIGN.md": "5b4414c5dccdcc9a452d3846a7a5fc2c587f154b4ffc5017e51f5739da286b8b",
+    "tests/test_async_bootstrap.py": "e3f55330f98ee0dc4d4826538e5dc238ecb924b11cf54824dfa623c8f5bddbca",
+    "tests/test_verify_slos.py": "684483c049a545be5e4e7e5bc7a195e63cfb1a7b099d337ba515af3f8e2446e1"
+  }
+}

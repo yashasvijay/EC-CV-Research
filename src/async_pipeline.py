@@ -40,7 +40,8 @@ from .runtime.packets import (
     _Frame,
 )
 from .runtime.history import _History
-from .runtime.motion import _owned, _advance_points
+from .runtime.motion import _owned
+from .motion import advance_batch
 from .runtime.mailbox import _offer_latest
 from .runtime.detector_worker import DetectionWorker, DetectionWorkerError
 
@@ -205,35 +206,45 @@ class AsyncTrackerRuntime:
         live = {t.id: t for t in self.tracker.tracks}
         staged: list[tuple[_Correction, np.ndarray, np.ndarray, float, KalmanBox | None]] = []
         try:
-            for correction in result.corrections:
-                if self.clock() >= deadline:
-                    return self._reject_result(result, "commit_budget")
-                track = live.get(correction.track_id) if correction.track_id is not None else None
-                if correction.track_id is not None:
-                    if track is None or self.revisions[track.id] != correction.revision:
-                        self.counts["corrections_rejected_revision"] += 1
-                        continue
-                box, points, confidence = (
-                    correction.detection[:4].copy(),
-                    correction.points.copy(),
-                    correction.confidence,
-                )
+            eligible = [
+                c
+                for c in result.corrections
+                if c.track_id is None or (c.track_id in live and self.revisions[c.track_id] == c.revision)
+            ]
+            self.counts["corrections_rejected_revision"] += len(result.corrections) - len(eligible)
+            boxes = [c.detection[:4].copy() for c in eligible]
+            points_batch = [c.points.copy() for c in eligible]
+            confidences = [c.confidence for c in eligible]
+            filters: list[KalmanBox | None] = []
+            for correction, box in zip(eligible, boxes):
                 filter_ = None
                 if correction.filter_x is not None:
-                    filter_ = KalmanBox(box)
                     assert correction.filter_p is not None
+                    filter_ = KalmanBox(box)
                     filter_.x, filter_.P = correction.filter_x.copy(), correction.filter_p.copy()
-                for previous, following in zip(path.frames, path.frames[1:]):
-                    if self.clock() >= deadline:
-                        return self._reject_result(result, "commit_budget")
-                    box, points, quality = _advance_points(
-                        previous.gray, following.gray, points, box, self.config
-                    )
-                    confidence *= quality
+                filters.append(filter_)
+            for previous, following in zip(path.frames, path.frames[1:]):
+                if self.clock() >= deadline:
+                    return self._reject_result(result, "commit_budget")
+                updates = advance_batch(
+                    previous.gray,
+                    following.gray,
+                    boxes,
+                    points_batch,
+                    min_points=self.config.min_points,
+                    fb_threshold=self.config.fb_threshold,
+                )
+                for j, update in enumerate(updates):
+                    boxes[j], points_batch[j] = update.box, update.points
+                    confidences[j] *= update.quality
+                    filter_ = filters[j]
                     if filter_ is not None:
                         filter_.predict(
                             (following.source_ns - previous.source_ns) / 1e9 * self.config.frame_rate
                         )
+            for j, correction in enumerate(eligible):
+                track = live.get(correction.track_id) if correction.track_id is not None else None
+                box, points, confidence, filter_ = boxes[j], points_batch[j], confidences[j], filters[j]
                 if track is not None:
                     box = track.box + correction.residual
                 elif len(points) < self.config.min_points or confidence <= 0:
@@ -289,10 +300,35 @@ class AsyncTrackerRuntime:
             self.last_fused_source_ns = result.source_time_ns
             self.last_fused_capture_ns = result.source_capture_ns
             self.counts["fused"] += 1
+            self.counts["fused_with_tracks"] += int(accepted > 0)
             self._event(EventKind.FUSED, result.source_frame, result.source_time_ns)
             return "fused"
         finally:
             path.release()
+
+    def _bootstrap(self, frame: np.ndarray, current: _Frame) -> bool:
+        """Initialize supported live tracks synchronously; caller includes all cost in latency."""
+        self.counts["bootstrap_calls"] += 1
+        detections = self.worker.detect_sync(_owned(frame))
+        self.tracker.update(current.gray, detections)
+        self.tracker.tracks = [t for t in self.tracker.tracks if len(t.points) >= self.config.min_points]
+        self.filters.clear()
+        self.revisions.clear()
+        self.anchors.clear()
+        for track in self.tracker.tracks:
+            self.anchors[track.id] = (current.frame_idx, current.source_ns)
+            self.revisions[track.id] = 1
+            if self.config.covariance:
+                self.filters[track.id] = KalmanBox(track.box)
+        if not self.tracker.tracks:
+            self.counts["bootstrap_empty"] += 1
+            return False
+        self.last_fused_frame = current.frame_idx
+        self.last_fused_source_ns = current.source_ns
+        self.last_fused_capture_ns = current.capture_ns
+        self.counts["bootstrap_successes"] += 1
+        self._event(EventKind.FUSED, current.frame_idx, current.source_ns)
+        return True
 
     def _retire_old_tracks(self, source_ns: int) -> None:
         retained = []
@@ -386,6 +422,7 @@ class AsyncTrackerRuntime:
             self.counts["history_capacity_misses"] += 1
         fusion = "none"
         result_age = None
+        useful_before = self.counts["fused_with_tracks"]
         before_fusion = self.clock()
         try:
             result = self.results.get_nowait()
@@ -404,6 +441,12 @@ class AsyncTrackerRuntime:
             self.fusion_estimate_ms = max(
                 self.config.fusion_headroom_ms, float(np.percentile(self.fusion_costs, 95))
             )
+        bootstrap_attempted = self.config.synchronous_bootstrap and not self.tracker.visible()
+        bootstrap_start = self.clock()
+        if bootstrap_attempted:
+            self._bootstrap(frame, current)
+        bootstrap_ms = (self.clock() - bootstrap_start) / 1e6 if bootstrap_attempted else 0.0
+        before_schedule = self.clock()
         latest_started, latest_service = self.worker.latest()
         context = ScheduleContext(
             index,
@@ -419,8 +462,8 @@ class AsyncTrackerRuntime:
             detector_service_ms=latest_service,
         )
         decision = self.scheduler.decide(context)
-        admission = "not_requested"
-        if decision.should_detect:
+        admission = "synchronous_bootstrap" if bootstrap_attempted else "not_requested"
+        if decision.should_detect and not bootstrap_attempted:
             self.counts["policy_requests"] += 1
             self.last_requested = index
             lease = self.history.lease(index, index) if admitted_history else None
@@ -495,9 +538,12 @@ class AsyncTrackerRuntime:
             "capture_timestamp_provenance": "caller_monotonic"
             if capture_time_ns is not None
             else "host_receipt",
+            "bootstrap_attempted": bootstrap_attempted,
+            "bootstrap_ms": bootstrap_ms,
+            "accepted_detection_update": self.counts["fused_with_tracks"] > useful_before,
             "flow_ms": (after_flow - before_flow) / 1e6,
             "fusion_ms": (after_fusion - before_fusion) / 1e6,
-            "scheduler_admission_ms": (after_schedule - after_fusion) / 1e6,
+            "scheduler_admission_ms": (after_schedule - before_schedule) / 1e6,
             "frame_work_ms": (published - started) / 1e6,
             "capture_to_output_ms": (published - capture) / 1e6,
             "deadline_missed": published > deadline,
@@ -670,6 +716,10 @@ class AsyncTrackerRuntime:
             "sampled_peak_rss_mib": self.sampled_peak_rss or None,
             "counts": dict(self.counts),
             "worker_counts": worker["counts"],
+            "fused_detection_ratio": self.counts["fused_with_tracks"] / worker["counts"].get("completed", 1)
+            if worker["counts"].get("completed", 0)
+            else 0.0,
+            "effective_replay_budget_ms": self.config.effective_replay_budget_ms,
             "detector_service_ms": _stats(worker["service_ms"]),
             "detector_queue_wait_ms": _stats(worker["queue_wait_ms"]),
             "worker_error": self.worker.error,

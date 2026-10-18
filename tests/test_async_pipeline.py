@@ -10,6 +10,13 @@ from src.async_pipeline import AsyncTrackerRuntime, DetectionWorkerError, Runtim
 from src.schedulers import FixedKPolicy, KalmanUncertaintyPolicy, OraclePolicy
 
 
+def legacy_runtime(factory, scheduler, config=None, **kwargs):
+    # These tests exercise worker-only admission, independently of cold-start inference.
+    return AsyncTrackerRuntime(
+        factory, scheduler, replace(config or RuntimeConfig(), synchronous_bootstrap=False), **kwargs
+    )
+
+
 def image(shift=0):
     canvas = np.zeros((120, 180, 3), np.uint8)
     canvas[30:90, 40:100] = np.random.default_rng(17).integers(0, 256, (60, 60, 3), dtype=np.uint8)
@@ -43,7 +50,7 @@ class ControlledDetector:
 
 def test_lifecycle_nonblocking_frames_latest_pending_and_shutdown():
     detector = ControlledDetector()
-    runtime = AsyncTrackerRuntime(lambda: detector, FixedKPolicy(1), RuntimeConfig(deadline_ms=500))
+    runtime = legacy_runtime(lambda: detector, FixedKPolicy(1), RuntimeConfig(deadline_ms=500))
     factory_thread = []
     runtime.worker.factory = lambda: factory_thread.append(threading.get_ident()) or detector
     try:
@@ -74,7 +81,7 @@ def test_lifecycle_nonblocking_frames_latest_pending_and_shutdown():
 
 def test_delayed_birth_is_propagated_to_current_frame_and_outputs_are_immutable(tmp_path):
     detector = ControlledDetector()
-    runtime = AsyncTrackerRuntime(lambda: detector, FixedKPolicy(100), RuntimeConfig(deadline_ms=500))
+    runtime = legacy_runtime(lambda: detector, FixedKPolicy(100), RuntimeConfig(deadline_ms=500))
     try:
         runtime.start()
         previous = runtime.process_frame(image(), source_time_ns=0)
@@ -107,7 +114,7 @@ def test_delayed_birth_is_propagated_to_current_frame_and_outputs_are_immutable(
 
 def test_camera_buffer_ownership():
     detector = ControlledDetector()
-    runtime = AsyncTrackerRuntime(lambda: detector, FixedKPolicy(100), RuntimeConfig(deadline_ms=500))
+    runtime = legacy_runtime(lambda: detector, FixedKPolicy(100), RuntimeConfig(deadline_ms=500))
     original = image()
     try:
         runtime.start()
@@ -126,7 +133,7 @@ def test_camera_buffer_ownership():
 
 @pytest.mark.parametrize("kind", ["expired", "target_lag", "epoch", "duplicate"])
 def test_reject_stale_results(kind):
-    runtime = AsyncTrackerRuntime(
+    runtime = legacy_runtime(
         lambda: lambda frame: detection(),
         FixedKPolicy(100),
         RuntimeConfig(deadline_ms=500, max_commit_frames=1),
@@ -161,7 +168,7 @@ def test_reject_stale_results(kind):
 def test_history_memory_bound_does_not_drop_tracking_frames():
     detector = ControlledDetector()
     config = RuntimeConfig(deadline_ms=500, history_frames=1, history_bytes=120 * 180)
-    runtime = AsyncTrackerRuntime(lambda: detector, FixedKPolicy(1), config)
+    runtime = legacy_runtime(lambda: detector, FixedKPolicy(1), config)
     try:
         runtime.start()
         runtime.process_frame(image(), source_time_ns=0)
@@ -192,7 +199,7 @@ class FakeClock:
 
 def test_deadline_misses_gaps_and_quantiles_use_fake_clock():
     clock = FakeClock()
-    runtime = AsyncTrackerRuntime(
+    runtime = legacy_runtime(
         lambda: lambda frame: np.empty((0, 6), np.float32), FixedKPolicy(100), clock=clock
     )
     try:
@@ -222,7 +229,7 @@ def test_factory_and_inference_failures_are_visible_and_workers_exit():
     def bad_factory():
         raise ValueError("factory fixture")
 
-    runtime = AsyncTrackerRuntime(bad_factory, FixedKPolicy(1))
+    runtime = legacy_runtime(bad_factory, FixedKPolicy(1))
     with pytest.raises(DetectionWorkerError, match="factory fixture"):
         runtime.start()
     assert runtime.close().stopped and not runtime.worker.is_alive()
@@ -232,7 +239,7 @@ def test_factory_and_inference_failures_are_visible_and_workers_exit():
         failed.set()
         raise ValueError("inference fixture")
 
-    runtime = AsyncTrackerRuntime(lambda: bad_detector, FixedKPolicy(1))
+    runtime = legacy_runtime(lambda: bad_detector, FixedKPolicy(1))
     try:
         runtime.start()
         runtime.process_frame(image())
@@ -247,7 +254,7 @@ def test_factory_and_inference_failures_are_visible_and_workers_exit():
 
 
 def test_schedulers_and_bounded_telemetry():
-    runtime = AsyncTrackerRuntime(
+    runtime = legacy_runtime(
         lambda: lambda frame: np.empty((0, 6), np.float32),
         OraclePolicy([], offline=True),
         RuntimeConfig(offline=True, telemetry_frames=2),
@@ -258,17 +265,17 @@ def test_schedulers_and_bounded_telemetry():
     assert not runtime.summary()["ledger_complete"]
     assert runtime.summary()["quantile_frames"] == 2 and runtime.summary()["frames"] == 5
     with pytest.raises(ValueError):
-        AsyncTrackerRuntime(
+        legacy_runtime(
             lambda: lambda frame: detection(), KalmanUncertaintyPolicy(0.1), RuntimeConfig(covariance=False)
         )
 
 
 def test_input_errors_owner_and_single_use_lifecycle():
-    runtime = AsyncTrackerRuntime(lambda: lambda frame: detection(), FixedKPolicy(100))
+    runtime = legacy_runtime(lambda: lambda frame: detection(), FixedKPolicy(100))
     assert runtime.close().stopped
     with pytest.raises(RuntimeError):
         runtime.start()
-    runtime = AsyncTrackerRuntime(lambda: lambda frame: detection(), FixedKPolicy(100)).start()
+    runtime = legacy_runtime(lambda: lambda frame: detection(), FixedKPolicy(100)).start()
     try:
         failures = []
         thread = threading.Thread(target=lambda: _wrong_owner(runtime, failures))
@@ -311,7 +318,7 @@ class TwoStageDetector:
 
 def test_matched_delayed_residual_preserves_current_motion_and_id():
     detector = TwoStageDetector(move=True)
-    runtime = AsyncTrackerRuntime(lambda: detector, FixedKPolicy(3), RuntimeConfig(deadline_ms=500))
+    runtime = legacy_runtime(lambda: detector, FixedKPolicy(3), RuntimeConfig(deadline_ms=500))
     try:
         runtime.start()
         runtime.process_frame(image(), source_time_ns=0)
@@ -338,7 +345,7 @@ def test_matched_delayed_residual_preserves_current_motion_and_id():
 def test_delayed_matched_result_cannot_resurrect_retired_track():
     detector = TwoStageDetector()
     config = RuntimeConfig(deadline_ms=500, max_track_age_ms=120)
-    runtime = AsyncTrackerRuntime(lambda: detector, FixedKPolicy(3), config)
+    runtime = legacy_runtime(lambda: detector, FixedKPolicy(3), config)
     try:
         runtime.start()
         runtime.process_frame(image(), source_time_ns=0)
@@ -367,7 +374,7 @@ def test_start_timeout_reports_incomplete_then_verified_shutdown():
         assert release.wait(3)
         return lambda frame: detection()
 
-    runtime = AsyncTrackerRuntime(factory, FixedKPolicy(1))
+    runtime = legacy_runtime(factory, FixedKPolicy(1))
     try:
         with pytest.raises(TimeoutError):
             runtime.start(timeout_s=0.01)
@@ -382,7 +389,7 @@ def test_start_timeout_reports_incomplete_then_verified_shutdown():
 
 
 def test_zero_texture_rejects_unsupported_birth():
-    runtime = AsyncTrackerRuntime(
+    runtime = legacy_runtime(
         lambda: lambda frame: detection(), FixedKPolicy(100), RuntimeConfig(deadline_ms=500)
     )
     try:
@@ -412,7 +419,7 @@ def test_actual_onnx_wrapper_runs_in_worker(tmp_path):
     )
     model_path = tmp_path / "fixture.onnx"
     onnx.save(helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)], ir_version=9), model_path)
-    runtime = AsyncTrackerRuntime(
+    runtime = legacy_runtime(
         lambda: YOLODetector(model_path, threads=1),
         FixedKPolicy(100),
         RuntimeConfig(deadline_ms=1000),

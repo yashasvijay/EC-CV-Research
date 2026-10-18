@@ -4,7 +4,7 @@ from __future__ import annotations
 from .types import Array
 
 from dataclasses import dataclass, field
-from .opencv_compat import sparse_lk
+from .motion import advance_batch
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from .features import select_roi_features
@@ -59,50 +59,18 @@ class LKTracker:
             return
         if gray.shape != self.previous.shape:
             raise ValueError("Frame dimensions changed within sequence")
-        for t in self.tracks:
-            t.displacement, t.fb_error = 0.0, None
-            if len(t.points) < self.min_points:
-                t.confidence = 0.0
-                continue
-            old = t.points
-            new, status, _ = sparse_lk(self.previous, gray, old)
-            if new is None or status is None or not np.isfinite(new).all():
-                t.confidence = 0.0
-                t.points = np.empty((0, 1, 2), np.float32)
-                continue
-            back, back_status, _ = sparse_lk(gray, self.previous, new)
-            if back is None or back_status is None:
-                t.confidence = 0.0
-                continue
-            errors = np.linalg.norm((back - old).reshape(-1, 2), axis=1)
-            xy = new.reshape(-1, 2)
-            good = (
-                (status.ravel() == 1)
-                & (back_status.ravel() == 1)
-                & np.isfinite(errors)
-                & (errors <= self.fb_threshold)
-                & (xy[:, 0] >= 0)
-                & (xy[:, 0] < gray.shape[1])
-                & (xy[:, 1] >= 0)
-                & (xy[:, 1] < gray.shape[0])
-            )
-            t.points = new[good].reshape(-1, 1, 2)
-            if good.sum() < self.min_points:
-                t.confidence = 0.0
-                continue
-            shifts = (new - old).reshape(-1, 2)[good]
-            delta = np.median(shifts, axis=0)
-            spread = float(np.median(np.linalg.norm(shifts - delta, axis=1)))
-            t.fb_error = float(np.median(errors[good]))
-            quality = float(good.mean() * np.exp(-t.fb_error / self.fb_threshold) * np.exp(-spread / 3.0))
-            t.confidence *= quality  # cumulative drift since last detector refresh
-            diagonal = max(1.0, float(np.linalg.norm(t.box[2:] - t.box[:2])))
-            t.displacement = float(np.linalg.norm(delta) / diagonal)
-            t.box += np.tile(delta, 2)
-            t.box[[0, 2]] = t.box[[0, 2]].clip(0, gray.shape[1])
-            t.box[[1, 3]] = t.box[[1, 3]].clip(0, gray.shape[0])
-            if np.any(t.box[2:] <= t.box[:2]):
-                t.confidence = 0.0
+        updates = advance_batch(
+            self.previous,
+            gray,
+            [t.box for t in self.tracks],
+            [t.points for t in self.tracks],
+            min_points=self.min_points,
+            fb_threshold=self.fb_threshold,
+        )
+        for track, update in zip(self.tracks, updates):
+            track.box, track.points = update.box, update.points
+            track.confidence *= update.quality
+            track.displacement, track.fb_error = update.displacement, update.fb_error
         self.previous = gray.copy()
 
     def update(self, gray: Array, detections: Array) -> None:

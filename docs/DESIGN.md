@@ -1,6 +1,6 @@
 # Streaming tracking system specification
 
-Status: implemented runtime; one empty-output run passed timing SLOs; useful-tracking qualification pending. Revision: 1, 2026-10-18.
+Status: implemented runtime; one empty-output run passed timing SLOs; useful-tracking qualification pending. Revision: 2, 2026-10-18.
 
 ## Scope and service boundary
 
@@ -15,14 +15,15 @@ The following JSON block is the sole executable threshold definition. `scripts/v
 <!-- SLO_CONTRACT_START -->
 ```json
 {
-  "version": 1,
+  "version": 2,
   "camera_fps": 30.0,
   "throughput_min_fps": 30.0,
   "p95_e2e_max_ms": 33.0,
   "p99_e2e_max_ms": 33.0,
   "deadline_ms": 33.0,
   "deadline_miss_max_fraction": 0.01,
-  "minimum_frames": 600
+  "minimum_frames": 600,
+  "minimum_fused_detection_ratio": 0.1
 }
 ```
 <!-- SLO_CONTRACT_END -->
@@ -57,7 +58,7 @@ Policy intent is distinct from admitted and completed work. Fixed-K, Kalman cova
 
 **Status:** accepted in the current runtime. **Decision:** each queue has capacity one by default. A nonblocking insertion replaces its oldest pending payload when full. The in-flight native inference is not cancelled. Release the displaced request/result's history lease, record replacement/disposal counters and preserve source IDs. Queue operations, not approximate `qsize()` snapshots, determine admission.
 
-**Rationale:** recent observations are more useful than an arbitrarily old FIFO backlog. Bounded queues limit retained images and observation age. The main tracking loop never waits for detector capacity. This policy drops detector requests/results, not source tracking frames. If grayscale history cannot retain an admitted request safely, reject admission and continue publishing tracking output.
+**Rationale:** recent observations are more useful than an arbitrarily old FIFO backlog. Bounded queues limit retained images and observation age. The steady-state tracking loop never waits for detector queue capacity. Synchronous cold-start/recovery is the measured exception described in contract version 2. This policy drops detector requests/results, not source tracking frames. If grayscale history cannot retain an admitted request safely, reject admission and continue publishing tracking output.
 
 **Consequences:** a policy request is not an inference guarantee. Effective inference reduction must use completed calls, with admitted/replaced/started/shutdown-discarded counts reported separately. Starvation and long detector freshness are possible; capacity bounds do not prove latency bounds. Worker startup and bounded shutdown joins occur outside the frame loop; an uninterruptible native call may outlive the join timeout and must be reported as incomplete shutdown.
 
@@ -86,4 +87,12 @@ The command checks idle conditions before model execution, runs the real runtime
 
 ## Current verification record
 
-The timing-only result is recorded in [the original report](../results/slos/mot17-02-fixed3/slo_report.json). Its 600 contiguous frames and zero populated outputs satisfy measurement integrity, while useful tracking remains unqualified. The verifier deliberately reports latency-only PASS; it must not be treated as an accuracy or release gate. Diagnose replay/commit rejection and repeat with live tracks before a tracking-performance claim. Current test/lint outcomes are in [publication validation](../reports/publication-validation/validation.json).
+The timing-only result is recorded in [the original report](../results/slos/mot17-02-fixed3/slo_report.json). Its 600 contiguous frames and zero populated outputs satisfy measurement integrity, while useful tracking remains unqualified. The original version-1 verifier reported latency-only PASS; version 2 additionally requires live tracks and useful background fusion. Neither version substitutes for accuracy evaluation. Diagnose replay/commit rejection and repeat with live tracks before a tracking-performance claim. Current test/lint outcomes are in [publication validation](../reports/publication-validation/validation.json).
+
+## Tracking-validity gate (contract version 2)
+
+Latency-only PASS is no longer sufficient. A run must publish tracks on at least one frame and successfully apply useful **background** detection corrections on at least 10% of completed background detector calls. The ratio is `fused_with_tracks / worker_counts.completed`; zero completed calls gives ratio zero. Synchronous bootstrap successes and empty detector results do not count as useful background fusion. This is a configurable engineering floor, not an accuracy guarantee or a validated optimal threshold. Missing counters or inconsistent per-frame acceptance flags fail validation. The historical 30 FPS / 5.61 ms p99 run remains immutable and fails this version's tracking-validity gates.
+
+Synchronous bootstrap is enabled by default when no live tracks remain. It uses the same detector under an inference lock, updates supported ROI tracks at the current source frame, and includes lock wait, inference and reseeding in `bootstrap_ms`, frame-work and capture-to-output latency. It may miss the deadline; bootstrap is not a hidden warmup. Source frame IDs remain one-based. `synchronous_bootstrap=False` is an explicit worker-only diagnostic mode, not the verifier default.
+
+Main-thread propagation, worker replay and final correction alignment batch all track points into one forward/backward LK pair per source step. The Python OpenCV binding rejects prebuilt pyramid tuples, so native LK constructs shared pyramids internally once per batched direction. No redundant `buildOpticalFlowPyramid` prepass is performed. `effective_replay_budget_ms` is capped by the commit-lag window minus a pickup reserve (default 33.33 ms rather than 100 ms); this is soft admission, not a guarantee that a single native call completes within budget. Age, source-order, epoch and target-lag rejection remain enforced.
