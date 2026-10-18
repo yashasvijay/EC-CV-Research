@@ -1,0 +1,160 @@
+{
+  "status": "complete",
+  "runtime_state": "stopped",
+  "config": {
+    "deadline_ms": 33.0,
+    "frame_rate": 30.0,
+    "queue_capacity": 1,
+    "history_frames": 16,
+    "history_bytes": 67108864,
+    "max_frame_bytes": 33554432,
+    "max_detection_age_ms": 500.0,
+    "max_replay_frames": 12,
+    "max_commit_frames": 2,
+    "fusion_headroom_ms": 3.0,
+    "replay_budget_ms": 100.0,
+    "max_tracks": 128,
+    "max_points": 60,
+    "min_points": 6,
+    "max_frame_gap": 2,
+    "match_iou": 0.3,
+    "fb_threshold": 1.5,
+    "max_track_age_ms": 1500.0,
+    "telemetry_frames": 12000,
+    "covariance": true,
+    "offline": false,
+    "epoch": "default"
+  },
+  "scheduler": {
+    "policy": "fixed_k",
+    "k": 3,
+    "frame_indexing": "one_based_source"
+  },
+  "metadata": {
+    "sequence": {
+      "name": "MOT17-02-FRCNN",
+      "frame_rate": 30.0,
+      "length": 600,
+      "width": 1920,
+      "height": 1080,
+      "image_dir": "img1",
+      "image_ext": ".jpg",
+      "path": "/Users/yashasvijay/Desktop/ECCV_Research/data/raw/MOT17/train/MOT17-02-FRCNN"
+    },
+    "classes": [
+      0
+    ],
+    "model_sha256": "3586b83d3d87a0465a7df8a85b9c0fb7c8fbac4efacd1dbb5e1ae535707dbc4b",
+    "code_sha256": {
+      "src/detector.py": "54b7e83971b657c71df8cc3466a34be42c92ac91216419d5a9b05c87d6fbde97",
+      "src/benchmark.py": "aa224428153b782e6661fe079d0bc8a1bc3d4d5ee44c7171aeb3823d887b56df",
+      "src/sort_tracker.py": "1581a78f229f7eb08eb116b20cc57681f7998e18f3f3426f0b2015db5cca357f",
+      "src/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/features.py": "b29876291f5ffab6c056ad11b8889476cdf97d23c2966c2e83b44449e78e7038",
+      "src/native_gating.py": "8eaf662eb87a96313069bdc7a97b3ad1434f92b10c8b39b126bd6cac5904d636",
+      "src/types.py": "9df0d76fb85302312bfff50a4a54aab5307bc95f75676e59b45fbb477e1eee19",
+      "src/opencv_compat.py": "1484646ef35e52baf82b1f754535f5868d1674e64146666fe39e3843b3c6c4c7",
+      "src/pipeline.py": "5f67dcdafcb2e2a49087dcc20bf1e6c1fe926b8691d4972775d5d0be83663cc2",
+      "src/tracker.py": "ea2b6b9f7c777455f7f237b67e46fb99f7ffca1b71198122d1ac11308ba98684",
+      "src/native_pipeline.py": "7bdebd8f5917b5bf13134dae7f075c2bfdd2ebddf6b3bc60aa7d0737bd0729ec",
+      "src/async_pipeline.py": "f31fccf20383c42f0eef61a81668cc4fd5b624b5bec1ab61a999bb7aeaaf34d8",
+      "src/datasets/__init__.py": "8a5eb2e1cae80f8a50cbc10a235002a87ee47f3387ea9015e1096729388b9103",
+      "src/datasets/mot17.py": "cb4257870ca32768b7018e19003cb70a282df17f1de23ca8867118198c36f9ce",
+      "src/runtime/detector_worker.py": "0d0ed8226e7368e8ad16829d580538c7fd7b107d2c2867142a48c0194ed81c91",
+      "src/runtime/__init__.py": "5dedcdb6706aebe7916653140d0225defe535886e581d4ed695c3f1c02f8c3d7",
+      "src/runtime/motion.py": "9cc820849ca57af8054372815167dc4faa545521ac04ddbc90242648e5982ba5",
+      "src/runtime/mailbox.py": "bf97b04b4c7d5950bec883f489b900916622902e8ed13e86c686ad30fa80dbb3",
+      "src/runtime/packets.py": "9e08d84292b6b140f9c94f38389dbc16997c549a2b4da32aa51855bbfb5cfc9d",
+      "src/runtime/history.py": "cb705984507ba81f5147dfc91c532cefbeae1dee9b4ff6ee0cfe9d7abff72b73",
+      "src/schedulers/kalman.py": "d2744e481a02ddcb6315fe336acf4434bb467a4b1b99abd9d5f2a7d35322af9c",
+      "src/schedulers/__init__.py": "804d2e6305917e3566a3ab96608f3f54062c3263a0df3bbd374aa44d77fb6b29",
+      "src/schedulers/fixed_k.py": "97d10fb1bab2eeeee8fac4e9109c6cff5e689bb02058f42fe69665fd2d622aac",
+      "src/schedulers/oracle.py": "8dad581471c78c344f35bdefa44452d2a35103a78e30e02562bb3b88ac66110c",
+      "src/schedulers/base.py": "c1a152bc4748e43cfd99376ab12be627400724e7f26f7bec5bc98d06f91ff56a",
+      "src/schedulers/heuristic.py": "2725e7dc5185b62c6af3c3ffc2a99d92e2f7f286d3044447ebcbb55a835e6a05"
+    },
+    "packages": {
+      "numpy": "2.5.4",
+      "opencv-python-headless": "4.14.0.94",
+      "onnxruntime": "1.31.0",
+      "psutil": "7.2.2"
+    },
+    "threads": 1,
+    "warmup": 10,
+    "ingestion": "nominal 30 FPS paced replay"
+  },
+  "cpu_convention": "100% = one logical core; can exceed 100%",
+  "throughput_window": "worker ready to last output; shutdown excluded",
+  "source_frame_range": [
+    1,
+    600
+  ],
+  "frames": 600,
+  "source_frames": 600,
+  "published_frames": 600,
+  "coverage": 1.0,
+  "deadline_miss_rate_published": 0.0016666666666666668,
+  "deadline_miss_rate_source": 0.0016666666666666668,
+  "frame_latency_ms": {
+    "mean": 0.44892661666666667,
+    "p50": 0.35039600000000004,
+    "p95": 0.54465625,
+    "p99": 0.5890400899999999
+  },
+  "capture_to_output_latency_ms": {
+    "mean": 5.47229876,
+    "p50": 5.371499999999999,
+    "p95": 5.5648979,
+    "p99": 5.60960342
+  },
+  "detector_freshness_ms": null,
+  "quantile_scope": "retained_frame_window",
+  "quantile_frames": 600,
+  "ledger_complete": true,
+  "event_ledger_complete": true,
+  "throughput_fps": 30.041926574313063,
+  "wall_seconds": 19.972087959,
+  "process_cpu_seconds": 22.165579328,
+  "cpu_window_seconds": 20.029406625,
+  "process_cpu_percent_mean": 110.66518216437677,
+  "sampled_peak_rss_mib": 328.9375,
+  "counts": {
+    "policy_requests": 200,
+    "requests_admitted": 200,
+    "frames": 600,
+    "deadline_misses": 1,
+    "result_rejected_commit_budget": 1,
+    "requests_superseded": 77,
+    "result_rejected_target_lag": 88,
+    "result_rejected_replay_budget": 28,
+    "result_rejected_deadline_headroom": 5
+  },
+  "worker_counts": {
+    "started": 123,
+    "detections_capped": 0,
+    "completed": 123,
+    "published": 122,
+    "unsupported_births": 4,
+    "shutdown_discarded": 1
+  },
+  "detector_service_ms": {
+    "mean": 82.81855347967478,
+    "p50": 82.67675,
+    "p95": 85.0758913,
+    "p99": 85.515913
+  },
+  "detector_queue_wait_ms": {
+    "mean": 48.51946919512195,
+    "p50": 46.766292,
+    "p95": 87.25564549999999,
+    "p99": 94.95481276000001
+  },
+  "worker_error": null,
+  "main_error": null,
+  "HOTA": null,
+  "MOTA": null,
+  "IDF1": null,
+  "IDSW": null,
+  "power_watts": null,
+  "accuracy_status": "not_evaluated; export causal outputs against the full source-frame ledger"
+}

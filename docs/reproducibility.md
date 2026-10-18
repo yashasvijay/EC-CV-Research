@@ -1,5 +1,7 @@
 # Reproduce the MOT17 experiment
 
+> Current scope (2026-10-18): This guide reproduces the historical synchronous comparison. For the current paced async SLO command and development environment, use README and engineering.md. See [verified performance](verified-performance.md).
+
 Run commands from the repository root. Python 3.13 was used for the recorded
 experiment. Package versions and the model hash are preserved in
 `docs/results-mot17-02.json`; resolved environments are under `reports/`.

@@ -1,0 +1,38 @@
+{
+  "timestamp_utc": "2026-10-17T01:36:08.332189+00:00",
+  "status": "complete",
+  "completed_runs": 48,
+  "planned_runs": 48,
+  "input_hashes": {
+    "csv": {
+      "path": "/Users/yashasvijay/Desktop/ECCV_Research/results/grid_search/summary.csv",
+      "sha256": "e7ade8a19a04a47e2bdfd025e30d70e381e480adf4dbccb31de4610e10432cc5"
+    },
+    "frontier": {
+      "path": "/Users/yashasvijay/Desktop/ECCV_Research/results/grid_search/pareto_frontier.json",
+      "sha256": "8688cef26e46d5d223a83c3ac684d9c6fd5c8e528a2806927bea9c6f7e94700f"
+    },
+    "summary": {
+      "path": "/Users/yashasvijay/Desktop/ECCV_Research/results/grid_search/summary.json",
+      "sha256": "2a114a53127184f5acf32605c9b5555e3a7fa371e05aee438779ff12240b5ec0"
+    }
+  },
+  "baseline": {
+    "configuration_id": "baseline",
+    "inference_reduction_percent": 0.0,
+    "HOTA": 32.80908657903011
+  },
+  "plotted_configurations": 48,
+  "two_dimensional_frontier": [
+    [
+      45.04761904761905,
+      33.9081662570154
+    ]
+  ],
+  "objectives": {
+    "HOTA": "maximize",
+    "inference_reduction_percent": "maximize"
+  },
+  "exported_frontier": "quality (HOTA, reduction and latency)",
+  "dpi": 300
+}

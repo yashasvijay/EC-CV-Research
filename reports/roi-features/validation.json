@@ -1,0 +1,17 @@
+{
+  "implementation_status": "validated",
+  "targeted_tests_passed": 93,
+  "measurement_status": "complete",
+  "historical_artifacts_unchanged": true,
+  "feature_source_sha256": "ec54b2648b6a7736089b9413d5f8c9b55dd48237e5536e00b160f4b132bd22c3",
+  "accuracy_status": "not_evaluated",
+  "latency_reduction_percent": 98.58073149538849,
+  "status": "passed",
+  "paired_rows": 300,
+  "pipeline_frames": 50,
+  "paired_repetitions": 3,
+  "identical_frame_box_counts": true,
+  "stage_share_sum_percent": 100.0,
+  "profile_readable": true,
+  "profile_total_calls": 342605
+}

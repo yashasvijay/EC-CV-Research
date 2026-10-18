@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "full_suite_passed": 120,
+  "additional_async_evaluation_integration_passed": 1,
+  "mypy_source_modules": 26,
+  "strict_mypy": true,
+  "lint_passed": true,
+  "editable_install_and_external_import_verified": true,
+  "github_actions_remote_run": "not_run; local workflow not pushed",
+  "files_sha256": {
+    "pyproject.toml": "d550fb515b0b96cd90a6a198a969203d3bfe0d12eea60a2adad2a6ff2213b762",
+    "Makefile": "01bdc06631e78b3d4db49ef0f48fb44003fdf1b0601f5cc11c14448756ce72ad",
+    ".github/workflows/ci.yml": "b5c379ab9a702c0ae3c97de9e4f5163831409c4a8e3d3a10ee3b92095793072d"
+  },
+  "real_policy_sweep_status": "deferred_host_busy",
+  "preflight_mean_cpu_percent": 26.03333333333333,
+  "historical_grid_plot": "reports/ablations/pareto_frontier.png",
+  "historical_artifacts_unchanged": true
+}

@@ -1,0 +1,28 @@
+Synchronous baseline profile: 50 frames
+Status: complete | Timing mode: cprofile_plus_phase_timers
+Exclusive costs below partition measured pipeline time (decode/export excluded).
+Stage                                           ms/frame     share       calls
+--------------------------------------------------------------------------------
+OpenCV goodFeaturesToTrack                        114.620    50.38%         507
+YOLO ONNX session.run                              79.671    35.02%          50
+OpenCV LK (forward + backward)                     28.548    12.55%        1162
+Detector preprocessing/postprocessing               1.502     0.66%          50
+Flow filtering/motion/state/copy                    1.372     0.60%          50
+Scalar IoU calls                                    0.831     0.37%        5982
+Update loops/masks/lifecycle/reseed setup           0.692     0.30%          50
+Grayscale conversion                                0.236     0.10%          50
+Pipeline orchestration/timing overhead              0.037     0.02%          50
+Hungarian assignment solve                          0.005     0.00%          49
+--------------------------------------------------------------------------------
+Pipeline mean/p95/p99: 227.514 / 266.182 / 276.533 ms
+Inclusive parent spans (nested; do not add these to the partition):
+  detector_other: 81.173 ms/frame
+  flow_other: 29.920 ms/frame
+  update_other: 116.148 ms/frame
+Decoded-frame work mean: 234.652 ms
+Observed throughput (includes export/logging): 4.258 FPS
+CPU: 98.16% (100% = one logical core)
+Sampled peak RSS: 297.47 MiB
+Costs include timer overhead and, by default, cProfile overhead; these are attribution measurements.
+IoU-loop control, full-image masks and feature-reseed setup remain in update_other.
+HOTA/MOTA/IDF1/IDSW are unevaluated for this short prefix; no fidelity claim is made.

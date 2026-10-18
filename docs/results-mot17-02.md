@@ -1,5 +1,7 @@
 # MOT17-02-FRCNN: initial real-sequence experiment
 
+> Current scope (2026-10-18): Historical pre-ROI synchronous accuracy results. These are not the 30 FPS empty-output async timing run. See [verified performance](verified-performance.md).
+
 ## Protocol
 
 The experiment processed all 600 frames at 1920x1080 from the MOT17 training

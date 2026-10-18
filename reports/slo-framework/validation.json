@@ -1,0 +1,25 @@
+{
+  "status": "validated",
+  "validation_scope": "unit tests and real AsyncTrackerRuntime with mock detector; no real-hardware SLO claim",
+  "targeted_tests_passed": 47,
+  "slo_specific_tests_passed": 16,
+  "strict_mypy_source_modules": 26,
+  "historical_artifacts_unchanged": true,
+  "hardware_slo_status": "not_evaluated",
+  "contract": {
+    "version": 1,
+    "camera_fps": 30.0,
+    "throughput_min_fps": 30.0,
+    "p95_e2e_max_ms": 33.0,
+    "p99_e2e_max_ms": 33.0,
+    "deadline_ms": 33.0,
+    "deadline_miss_max_fraction": 0.01,
+    "minimum_frames": 600
+  },
+  "files_sha256": {
+    "docs/DESIGN.md": "7e2079eca0bbf479f3ede028163c439ca133b2e114f1811fe13457071ed66b3b",
+    "docs/POSTMORTEM_GATING.md": "cdc2dc1d9d34a901b81841fd50a61faa6b919cce21cd12d54563fde08688469d",
+    "scripts/verify_slos.py": "4f0eb231aa8877540eaf9f06eef273fb21fbaa409b9e57f9df51b3c0895d2b5a",
+    "tests/test_verify_slos.py": "96419893e6c2c22e242f5f746f7b2205940f4cc7c59494cfd52aa41f4f757c6e"
+  }
+}

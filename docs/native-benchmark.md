@@ -1,13 +1,14 @@
 # Native gating comparison and opt-in integration
 
-## Protect the active search
+> Current scope (2026-10-18): C++ gating remains optional and separate from the primary async runtime. Validate the prepared patch against current source before applying it; do not reinterpret native correctness as hardware speedup. See [verified performance](verified-performance.md).
 
-The grid search starts a new pipeline process for each configuration and hashes
+## Preserve experiment provenance
+
+The completed historical grid started a new pipeline process for each configuration and hashed
 its Python source files for resume/reproducibility. Changing `src/pipeline.py`
 or `scripts/run_phase1.py` before it finishes would change later job inputs,
-even if a native flag were disabled. Both live files are therefore preserved.
-The implementation provides an isolated native CLI now and a verified direct
-integration patch for application after all searches finish.
+even if a native flag were disabled. Those original experiment artifacts are preserved; current source versions have since changed.
+The implementation provides an isolated native CLI and a guarded, unapplied direct-integration patch. It is optional historical work, not a dependency of the async runtime.
 
 This work does not replace the LK solver or tracking reductions in the production
 pipeline. The opt-in flag routes **scheduling decisions** to the C++ engine;

@@ -1,0 +1,63 @@
+{
+  "status": "complete",
+  "frames_per_repeat": 50,
+  "repeats": 3,
+  "sequence": {
+    "name": "MOT17-02-FRCNN",
+    "frame_rate": 30.0,
+    "length": 600,
+    "width": 1920,
+    "height": 1080,
+    "image_dir": "img1",
+    "image_ext": ".jpg",
+    "path": "/Users/yashasvijay/Desktop/ECCV_Research/data/raw/MOT17/train/MOT17-02-FRCNN"
+  },
+  "threads": 1,
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "packages": {
+    "opencv": "4.14.0",
+    "numpy": "2.5.3"
+  },
+  "workload_sha256": "53a31319b1016cc112dd4f080347481ff17746384792472422efce69a467b9a3",
+  "feature_source_sha256": "ec54b2648b6a7736089b9413d5f8c9b55dd48237e5536e00b160f4b132bd22c3",
+  "benchmark_source_sha256": "7332c95c6871c9c78ec06e7e4ceb98651705d57ec67188747e604e1fc461e681",
+  "timing": "paired per-frame reseeding including masks/offsets; decode and logging excluded; no cProfile",
+  "order": "alternates by repeat and frame",
+  "aggregates": {
+    "full_frame_mask": {
+      "mean_ms_per_frame": 147.7969494202019,
+      "p95_ms": 222.00022515535218,
+      "p99_ms": 622.3267883408657,
+      "repeat_means_ms": [
+        117.15925504016923,
+        189.14607654092833,
+        137.08551667950815
+      ],
+      "repeat_mean_sd_ms": 37.16956699995768,
+      "calls": 1521,
+      "corners": 82926
+    },
+    "cropped_roi_mask": {
+      "mean_ms_per_frame": 2.0976355538975135,
+      "p95_ms": 2.4661815485160328,
+      "p99_ms": 5.063925917638688,
+      "repeat_means_ms": [
+        1.4042066008551046,
+        3.40239170123823,
+        1.4863083595992066
+      ],
+      "repeat_mean_sd_ms": 1.1306974076713716,
+      "calls": 1521,
+      "corners": 83406
+    }
+  },
+  "wall_seconds": 23.71475412500149,
+  "sampled_peak_rss_mib": 191.390625,
+  "process_cpu_percent_mean": 83.12017536466347,
+  "cpu_window": "includes both backends, decode, and benchmark overhead; 100% = one logical core",
+  "HOTA": null,
+  "MOTA": null,
+  "accuracy_status": "not evaluated; corner populations may differ",
+  "reseeding_speedup": 70.45883120429937,
+  "latency_reduction_percent": 98.58073149538849
+}

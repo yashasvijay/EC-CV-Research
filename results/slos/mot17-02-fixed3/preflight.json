@@ -1,0 +1,13 @@
+{
+  "cpu_percent_samples": [
+    3.9,
+    2.7,
+    4.0,
+    2.8,
+    4.1,
+    4.1
+  ],
+  "mean_cpu_percent": 3.5999999999999996,
+  "passed": true,
+  "thermal_conditions": "uncontrolled"
+}

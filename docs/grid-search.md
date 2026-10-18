@@ -1,5 +1,7 @@
 # Adaptive gating grid search
 
+> Current scope (2026-10-18): The original 48-configuration synchronous grid is complete (48/48). Its source hashes describe the historical tracker; use a new output for a changed implementation. See [verified performance](verified-performance.md).
+
 Run the search on a development sequence, then verify selected configurations
 on held-out sequences. Lower confidence thresholds can permit longer tracking
 without detection, but neither higher intervals nor relaxed motion thresholds

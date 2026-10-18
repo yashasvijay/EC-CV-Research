@@ -1,0 +1,74 @@
+{
+  "status": "PASS",
+  "checks": {
+    "measurement_integrity": {
+      "status": "PASS",
+      "issues": [],
+      "frames": 600
+    },
+    "throughput_fps": {
+      "status": "PASS",
+      "measured": 30.0,
+      "operator": ">=",
+      "threshold": 30.0
+    },
+    "p95_e2e_ms": {
+      "status": "PASS",
+      "measured": 5.5648979,
+      "operator": "<",
+      "threshold": 33.0
+    },
+    "p99_e2e_ms": {
+      "status": "PASS",
+      "measured": 5.60960342,
+      "operator": "<",
+      "threshold": 33.0
+    },
+    "deadline_miss_fraction": {
+      "status": "PASS",
+      "measured": 0.0016666666666666668,
+      "operator": "<",
+      "threshold": 0.01
+    }
+  },
+  "diagnostics": {
+    "time_to_first_track_ms": null,
+    "max_request_queue_depth": 1,
+    "max_result_queue_depth": 0,
+    "missing_frames": 0,
+    "frames_with_tracks": 0,
+    "first_track_frame": null,
+    "process_cpu_percent_mean": 110.66518216437677,
+    "sampled_peak_rss_mib": 328.9375,
+    "worker_counts": {
+      "started": 123,
+      "detections_capped": 0,
+      "completed": 123,
+      "published": 122,
+      "unsupported_births": 4,
+      "shutdown_discarded": 1
+    },
+    "detector_freshness_ms": null
+  },
+  "qualification": "run-level latency only; tracking accuracy and production camera qualification are separate",
+  "timestamp_utc": "2026-10-18T20:12:23.141667+00:00",
+  "contract": {
+    "version": 1,
+    "camera_fps": 30.0,
+    "throughput_min_fps": 30.0,
+    "p95_e2e_max_ms": 33.0,
+    "p99_e2e_max_ms": 33.0,
+    "deadline_ms": 33.0,
+    "deadline_miss_max_fraction": 0.01,
+    "minimum_frames": 600
+  },
+  "design_sha256": "7e2079eca0bbf479f3ede028163c439ca133b2e114f1811fe13457071ed66b3b",
+  "design_path": "/Users/yashasvijay/Desktop/ECCV_Research/docs/DESIGN.md",
+  "verifier_sha256": "4f0eb231aa8877540eaf9f06eef273fb21fbaa409b9e57f9df51b3c0895d2b5a",
+  "mode": "saved_export",
+  "input_hashes": {
+    "summary.json": "126d1066f26c0b794cc6caf7a9fc0f09a0485e32f0f3e3c0bd9b90e3d64ffa10",
+    "frames.jsonl": "6123a0dd8fec40ff37bf7020285b86c501859537e836072443426502affcfca1"
+  },
+  "runtime_directory": "/Users/yashasvijay/Desktop/ECCV_Research/results/slos/mot17-02-fixed3/runtime"
+}

@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "frames": 50,
+  "source_frames": [
+    1,
+    50
+  ],
+  "stage_share_sum_percent": 100.0,
+  "profile_total_calls": 334493,
+  "profile_sha256": "04aceef8e65b1107bdc19ca84633c3f7c31a0a69d785762a2cb24aa90111a03d",
+  "grid_search_source_hashes_unchanged": true,
+  "thermal_conditions": "not measured or controlled",
+  "accuracy": "not evaluated"
+}

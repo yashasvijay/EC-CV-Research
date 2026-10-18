@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-10-16T17:34:01.513297+00:00",
+  "cpu_samples": [
+    22.6,
+    25.1,
+    29.6,
+    20.8,
+    26.7,
+    31.4
+  ],
+  "mean_cpu": 26.03333333333333,
+  "idle_passed": false,
+  "thermal_conditions": "uncontrolled"
+}

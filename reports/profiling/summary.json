@@ -1,0 +1,231 @@
+{
+  "status": "complete",
+  "metadata": {
+    "mode": "baseline",
+    "tracker": "lk",
+    "sequence": {
+      "name": "MOT17-02-FRCNN",
+      "frame_rate": 30.0,
+      "length": 600,
+      "width": 1920,
+      "height": 1080,
+      "image_dir": "img1",
+      "image_ext": ".jpg",
+      "path": "/Users/yashasvijay/Desktop/ECCV_Research/data/raw/MOT17/train/MOT17-02-FRCNN"
+    },
+    "source_frame_range": [
+      1,
+      50
+    ],
+    "warmup": 10,
+    "threads": 1,
+    "classes": [
+      0
+    ],
+    "num_classes": 80,
+    "model": "/Users/yashasvijay/Desktop/ECCV_Research/models/yolo11n.onnx",
+    "model_sha256": "3586b83d3d87a0465a7df8a85b9c0fb7c8fbac4efacd1dbb5e1ae535707dbc4b",
+    "code_sha256": {
+      "scripts/profile_pipeline.py": "d2e7ff750f70b3c4cc27834b28ab3139a2f165972dfc155c7d298b8ab5e72e2b",
+      "src/pipeline.py": "37a02f07065cdc988e5d03272d7155219ce41db5d9c4815fdd02389c1d677ebb",
+      "src/tracker.py": "4c7852987a0ab3fe07071496a5fc84b85b41de5d0da1b5cfc271e2b031be4007",
+      "src/detector.py": "6204fad6aa356b8af57a1912860ecd221a90865a2a66c48e11252560ec6e9b96",
+      "src/benchmark.py": "0d2543caaa17d731c6946fa373acd50e0c0d8f40e0b280a37d74bec1305c3dd9",
+      "src/datasets/mot17.py": "137b959dcc296a7a3e9e8a1f15261c0eaac8027af262a481039e257b8b11c3e0"
+    },
+    "packages": {
+      "numpy": "2.5.3",
+      "opencv-python-headless": "4.14.0.94",
+      "onnxruntime": "1.30.0",
+      "scipy": "1.18.1",
+      "psutil": "7.2.2"
+    },
+    "providers": [
+      "CPUExecutionProvider"
+    ],
+    "active_grid_searches": [],
+    "timing_mode": "cprofile_plus_phase_timers",
+    "timing": "pipeline excludes decode/export/logging; all measured phases include instrumentation overhead",
+    "status": "complete"
+  },
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "python": "3.13.3",
+  "logical_cpus": 8,
+  "frames": 50,
+  "wall_seconds": 11.741721625000082,
+  "throughput_fps": 4.25831931609941,
+  "pipeline_fps": 4.39532430351473,
+  "pipeline_latency_ms": {
+    "mean": 227.51449744000638,
+    "p50": 222.7639379999573,
+    "p95": 266.18241249990433,
+    "p99": 276.5333988400198
+  },
+  "frame_work_latency_ms": {
+    "mean": 234.65183489998253,
+    "p50": 230.36502100001144,
+    "p95": 273.5758207999879,
+    "p99": 284.2469886699314
+  },
+  "process_cpu_seconds": 11.526112672000002,
+  "process_cpu_percent_mean": 98.16373646143157,
+  "sampled_peak_rss_mib": 297.46875,
+  "detection_fraction": 1.0,
+  "triggers": {
+    "baseline": 50
+  },
+  "MOTA": null,
+  "HOTA": null,
+  "IDF1": null,
+  "IDSW": null,
+  "power_watts": null,
+  "accuracy_status": "not_evaluated; short source segment, not a full-sequence result",
+  "profile_file": "baseline_profile.prof",
+  "stage_breakdown": {
+    "yolo_inference": {
+      "label": "YOLO ONNX session.run",
+      "calls": 50,
+      "total_exclusive_ms": 3983.5681260001365,
+      "mean_exclusive_ms_per_frame": 79.67136252000273,
+      "pipeline_percent": 35.018147597830065,
+      "mean_inclusive_ms_per_call": 79.67136252000273,
+      "mean_inclusive_ms_per_frame": 79.67136252000273,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 78.92145849996268,
+        "p95": 83.28124564997096,
+        "p99": 94.84273932989933
+      }
+    },
+    "detector_other": {
+      "label": "Detector preprocessing/postprocessing",
+      "calls": 50,
+      "total_exclusive_ms": 75.09753699946486,
+      "mean_exclusive_ms_per_frame": 1.5019507399892973,
+      "pipeline_percent": 0.6601560590156892,
+      "mean_inclusive_ms_per_call": 81.17331325999203,
+      "mean_inclusive_ms_per_frame": 81.17331325999203,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 1.491417000124784,
+        "p95": 1.570557849800025,
+        "p99": 1.7932194199465807
+      }
+    },
+    "lk_flow": {
+      "label": "OpenCV LK (forward + backward)",
+      "calls": 1162,
+      "total_exclusive_ms": 1427.4090850026369,
+      "mean_exclusive_ms_per_frame": 28.548181700052737,
+      "pipeline_percent": 12.547851684739628,
+      "mean_inclusive_ms_per_call": 1.228407129950634,
+      "mean_inclusive_ms_per_frame": 28.548181700052737,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 29.127165999966564,
+        "p95": 36.23211069989338,
+        "p99": 37.171066329567566
+      }
+    },
+    "flow_other": {
+      "label": "Flow filtering/motion/state/copy",
+      "calls": 50,
+      "total_exclusive_ms": 68.59083299696067,
+      "mean_exclusive_ms_per_frame": 1.3718166599392134,
+      "pipeline_percent": 0.6029579105397227,
+      "mean_inclusive_ms_per_call": 29.91999835999195,
+      "mean_inclusive_ms_per_frame": 29.91999835999195,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 1.3899169997557692,
+        "p95": 1.7900359999089228,
+        "p99": 1.903924229943641
+      }
+    },
+    "feature_selection": {
+      "label": "OpenCV goodFeaturesToTrack",
+      "calls": 507,
+      "total_exclusive_ms": 5730.978668994112,
+      "mean_exclusive_ms_per_frame": 114.61957337988224,
+      "pipeline_percent": 50.37901965350864,
+      "mean_inclusive_ms_per_call": 11.303705461526848,
+      "mean_inclusive_ms_per_frame": 114.61957337988224,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 113.02799999987201,
+        "p95": 150.27073209955685,
+        "p99": 157.04912829017303
+      }
+    },
+    "iou": {
+      "label": "Scalar IoU calls",
+      "calls": 5982,
+      "total_exclusive_ms": 41.55388199410481,
+      "mean_exclusive_ms_per_frame": 0.8310776398820963,
+      "pipeline_percent": 0.36528557486814406,
+      "mean_inclusive_ms_per_call": 0.006946486458392647,
+      "mean_inclusive_ms_per_frame": 0.8310776398820963,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 0.8148980000441952,
+        "p95": 1.3382699480416704,
+        "p99": 1.400716838779772
+      }
+    },
+    "hungarian": {
+      "label": "Hungarian assignment solve",
+      "calls": 49,
+      "total_exclusive_ms": 0.260834000300747,
+      "mean_exclusive_ms_per_frame": 0.00521668000601494,
+      "pipeline_percent": 0.0022929000414096835,
+      "mean_inclusive_ms_per_call": 0.005323142863280551,
+      "mean_inclusive_ms_per_frame": 0.00521668000601494,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 0.005146500029695744,
+        "p95": 0.006687800089366646,
+        "p99": 0.008330079965617184
+      }
+    },
+    "update_other": {
+      "label": "Update loops/masks/lifecycle/reseed setup",
+      "calls": 50,
+      "total_exclusive_ms": 34.6237410115009,
+      "mean_exclusive_ms_per_frame": 0.6924748202300179,
+      "pipeline_percent": 0.30436514069289916,
+      "mean_inclusive_ms_per_call": 116.14834252000037,
+      "mean_inclusive_ms_per_frame": 116.14834252000037,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 0.6840605000206779,
+        "p95": 0.973320851801418,
+        "p99": 0.995072820257974
+      }
+    },
+    "grayscale": {
+      "label": "Grayscale conversion",
+      "calls": 50,
+      "total_exclusive_ms": 11.81246500141242,
+      "mean_exclusive_ms_per_frame": 0.2362493000282484,
+      "pipeline_percent": 0.10383922901025035,
+      "mean_inclusive_ms_per_call": 0.2362493000282484,
+      "mean_inclusive_ms_per_frame": 0.2362493000282484,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 0.22362550009802362,
+        "p95": 0.2776417001086882,
+        "p99": 0.4491982501122034
+      }
+    },
+    "pipeline_other": {
+      "label": "Pipeline orchestration/timing overhead",
+      "calls": 50,
+      "total_exclusive_ms": 1.8296999996891827,
+      "mean_exclusive_ms_per_frame": 0.036593999993783655,
+      "pipeline_percent": 0.01608424975354952,
+      "mean_inclusive_ms_per_call": 227.51449744000638,
+      "mean_inclusive_ms_per_frame": 227.51449744000638,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 0.035854499856213806,
+        "p95": 0.04048270006933307,
+        "p99": 0.04944741998542665
+      }
+    }
+  },
+  "deadline_miss_rate_pipeline_work": {
+    "33": 1.0,
+    "50": 1.0
+  },
+  "error": null
+}

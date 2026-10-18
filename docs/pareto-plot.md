@@ -1,5 +1,7 @@
 # HOTA versus inference reduction figure
 
+> Current scope (2026-10-18): The generated reports/ablations/pareto_frontier.png is the historical synchronous HOTA/inference plot. --policy-summary selects the separate async policy plotting mode after a complete evaluated sweep. See [verified performance](verified-performance.md).
+
 After the full search completes, run from the repository root:
 
 ```bash

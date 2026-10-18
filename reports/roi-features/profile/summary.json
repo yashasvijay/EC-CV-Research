@@ -1,0 +1,232 @@
+{
+  "status": "complete",
+  "metadata": {
+    "mode": "baseline",
+    "tracker": "lk",
+    "sequence": {
+      "name": "MOT17-02-FRCNN",
+      "frame_rate": 30.0,
+      "length": 600,
+      "width": 1920,
+      "height": 1080,
+      "image_dir": "img1",
+      "image_ext": ".jpg",
+      "path": "/Users/yashasvijay/Desktop/ECCV_Research/data/raw/MOT17/train/MOT17-02-FRCNN"
+    },
+    "source_frame_range": [
+      1,
+      50
+    ],
+    "warmup": 10,
+    "threads": 1,
+    "classes": [
+      0
+    ],
+    "num_classes": 80,
+    "model": "/Users/yashasvijay/Desktop/ECCV_Research/models/yolo11n.onnx",
+    "model_sha256": "3586b83d3d87a0465a7df8a85b9c0fb7c8fbac4efacd1dbb5e1ae535707dbc4b",
+    "code_sha256": {
+      "scripts/profile_pipeline.py": "1c99bcf178633dac3a142944f2372b0f86f7014e734364550ac60ba296c3edd9",
+      "src/pipeline.py": "37a02f07065cdc988e5d03272d7155219ce41db5d9c4815fdd02389c1d677ebb",
+      "src/tracker.py": "589858194a92ba8fa72de180c39b052a77e15a5bd4f6563b6cfc89fb89284e88",
+      "src/features.py": "ec54b2648b6a7736089b9413d5f8c9b55dd48237e5536e00b160f4b132bd22c3",
+      "src/detector.py": "6204fad6aa356b8af57a1912860ecd221a90865a2a66c48e11252560ec6e9b96",
+      "src/benchmark.py": "0d2543caaa17d731c6946fa373acd50e0c0d8f40e0b280a37d74bec1305c3dd9",
+      "src/datasets/mot17.py": "137b959dcc296a7a3e9e8a1f15261c0eaac8027af262a481039e257b8b11c3e0"
+    },
+    "packages": {
+      "numpy": "2.5.3",
+      "opencv-python-headless": "4.14.0.94",
+      "onnxruntime": "1.30.0",
+      "scipy": "1.18.1",
+      "psutil": "7.2.2"
+    },
+    "providers": [
+      "CPUExecutionProvider"
+    ],
+    "active_grid_searches": [],
+    "timing_mode": "cprofile_plus_phase_timers",
+    "timing": "pipeline excludes decode/export/logging; all measured phases include instrumentation overhead",
+    "status": "complete"
+  },
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "python": "3.13.3",
+  "logical_cpus": 8,
+  "frames": 50,
+  "wall_seconds": 6.201283832997433,
+  "throughput_fps": 8.06284655669956,
+  "pipeline_fps": 8.41898847565809,
+  "pipeline_latency_ms": {
+    "mean": 118.77911496034358,
+    "p50": 118.47660449711839,
+    "p95": 140.7454084517667,
+    "p99": 143.44415182960802
+  },
+  "frame_work_latency_ms": {
+    "mean": 123.85398327955045,
+    "p50": 123.45856249885401,
+    "p95": 145.7368815499649,
+    "p99": 149.31284658276127
+  },
+  "process_cpu_seconds": 6.096258752,
+  "process_cpu_percent_mean": 98.30639777462551,
+  "sampled_peak_rss_mib": 247.171875,
+  "detection_fraction": 1.0,
+  "triggers": {
+    "baseline": 50
+  },
+  "MOTA": null,
+  "HOTA": null,
+  "IDF1": null,
+  "IDSW": null,
+  "power_watts": null,
+  "accuracy_status": "not_evaluated; short source segment, not a full-sequence result",
+  "profile_file": "baseline_profile.prof",
+  "stage_breakdown": {
+    "yolo_inference": {
+      "label": "YOLO ONNX session.run",
+      "calls": 50,
+      "total_exclusive_ms": 4144.6888329519425,
+      "mean_exclusive_ms_per_frame": 82.89377665903885,
+      "pipeline_percent": 69.78817503962236,
+      "mean_inclusive_ms_per_call": 82.89377665903885,
+      "mean_inclusive_ms_per_frame": 82.89377665903885,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 82.34112500213087,
+        "p95": 88.12306494655786,
+        "p99": 89.20964823977556
+      }
+    },
+    "detector_other": {
+      "label": "Detector preprocessing/postprocessing",
+      "calls": 50,
+      "total_exclusive_ms": 76.95754201267846,
+      "mean_exclusive_ms_per_frame": 1.5391508402535692,
+      "pipeline_percent": 1.2958093186394264,
+      "mean_inclusive_ms_per_call": 84.43292749929242,
+      "mean_inclusive_ms_per_frame": 84.43292749929242,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 1.4900000023772009,
+        "p95": 1.7353356037347112,
+        "p99": 1.8493274202046448
+      }
+    },
+    "lk_flow": {
+      "label": "OpenCV LK (forward + backward)",
+      "calls": 1162,
+      "total_exclusive_ms": 1489.2826049908763,
+      "mean_exclusive_ms_per_frame": 29.785652099817526,
+      "pipeline_percent": 25.076506176832492,
+      "mean_inclusive_ms_per_call": 1.2816545653966234,
+      "mean_inclusive_ms_per_frame": 29.785652099817526,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 29.260022995003965,
+        "p95": 43.93601654228405,
+        "p99": 48.90334488722146
+      }
+    },
+    "flow_other": {
+      "label": "Flow filtering/motion/state/copy",
+      "calls": 50,
+      "total_exclusive_ms": 75.25519005139358,
+      "mean_exclusive_ms_per_frame": 1.5051038010278717,
+      "pipeline_percent": 1.267145155552284,
+      "mean_inclusive_ms_per_call": 31.290755900845397,
+      "mean_inclusive_ms_per_frame": 31.290755900845397,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 1.4046669894014485,
+        "p95": 2.8448228506022115,
+        "p99": 3.956480350752824
+      }
+    },
+    "feature_selection": {
+      "label": "OpenCV goodFeaturesToTrack",
+      "calls": 507,
+      "total_exclusive_ms": 65.26101200142875,
+      "mean_exclusive_ms_per_frame": 1.305220240028575,
+      "pipeline_percent": 1.098863415899626,
+      "mean_inclusive_ms_per_call": 0.1287199447759936,
+      "mean_inclusive_ms_per_frame": 1.305220240028575,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 1.3098550261929631,
+        "p95": 1.55723798670806,
+        "p99": 1.9654764702136147
+      }
+    },
+    "iou": {
+      "label": "Scalar IoU calls",
+      "calls": 5982,
+      "total_exclusive_ms": 42.65067847154569,
+      "mean_exclusive_ms_per_frame": 0.8530135694309138,
+      "pipeline_percent": 0.7181511410618835,
+      "mean_inclusive_ms_per_call": 0.007129835919683331,
+      "mean_inclusive_ms_per_frame": 0.8530135694309138,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 0.8228340811911039,
+        "p95": 1.3638667114719283,
+        "p99": 1.5048746863612905
+      }
+    },
+    "hungarian": {
+      "label": "Hungarian assignment solve",
+      "calls": 49,
+      "total_exclusive_ms": 0.27154298732057214,
+      "mean_exclusive_ms_per_frame": 0.005430859746411443,
+      "pipeline_percent": 0.004572234561795336,
+      "mean_inclusive_ms_per_call": 0.005541693618787187,
+      "mean_inclusive_ms_per_frame": 0.005430859746411443,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 0.005188005161471665,
+        "p95": 0.008535598317394033,
+        "p99": 0.008833837928250432
+      }
+    },
+    "update_other": {
+      "label": "Update loops/masks/lifecycle/reseed setup",
+      "calls": 50,
+      "total_exclusive_ms": 30.21785155578982,
+      "mean_exclusive_ms_per_frame": 0.6043570311157964,
+      "pipeline_percent": 0.5088074880146828,
+      "mean_inclusive_ms_per_call": 2.7680217003216967,
+      "mean_inclusive_ms_per_frame": 2.7680217003216967,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 0.5903318960918114,
+        "p95": 0.8489591571560595,
+        "p99": 0.9144075078074819
+      }
+    },
+    "grayscale": {
+      "label": "Grayscale conversion",
+      "calls": 50,
+      "total_exclusive_ms": 12.603794064489193,
+      "mean_exclusive_ms_per_frame": 0.25207588128978387,
+      "pipeline_percent": 0.2122223939570047,
+      "mean_inclusive_ms_per_call": 0.25207588128978387,
+      "mean_inclusive_ms_per_frame": 0.25207588128978387,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 0.22256249940255657,
+        "p95": 0.2710749948164448,
+        "p99": 0.7962854330253303
+      }
+    },
+    "pipeline_other": {
+      "label": "Pipeline orchestration/timing overhead",
+      "calls": 50,
+      "total_exclusive_ms": 1.766698929714039,
+      "mean_exclusive_ms_per_frame": 0.03533397859428078,
+      "pipeline_percent": 0.029747635858439953,
+      "mean_inclusive_ms_per_call": 118.77911496034358,
+      "mean_inclusive_ms_per_frame": 118.77911496034358,
+      "exclusive_per_frame_quantiles_ms": {
+        "p50": 0.03352048224769533,
+        "p95": 0.04936718105454928,
+        "p99": 0.06084933222155084
+      }
+    }
+  },
+  "deadline_miss_rate_pipeline_work": {
+    "33": 1.0,
+    "50": 1.0
+  },
+  "error": null
+}

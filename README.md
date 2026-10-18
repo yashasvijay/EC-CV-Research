@@ -1,319 +1,91 @@
-# Adaptive Neural Gating for Real-Time Computer Vision on Edge Hardware
+# Adaptive Streaming Tracking on Apple Silicon
 
-Phase 1, Weeks 1–2: CPU ONNX detection with Lucas–Kanade adaptive gating,
-an eight-state SORT variant, strict MOT17 loading, automated TrackEval metrics,
-and fixed-interval inference ablations.
+A producer–consumer runtime for tracking-by-detection: the main thread propagates sparse Lucas–Kanade (LK) tracks at source cadence, while a background worker executes YOLO11n ONNX inference and prepares source-time corrections. Bounded queues replace stale pending detector work; the tracking thread owns live state and publishes immutable outputs. Cropped ROI feature selection avoids repeated full-image corner extraction.
 
+The project studies throughput, latency and tracking fidelity under constrained inference capacity. It includes four swappable schedulers, MOT17 adapters, causal/deadline-valid TrackEval exports, stage profiling, and a versioned SLO verifier. The runtime is implemented; full tracking qualification remains open.
 
-This project studies whether tracking confidence and motion signals can reduce
-neural detector inference while preserving multi-object tracking accuracy.
-The current implementation is a Python CPU prototype, with dedicated native
-extension directories reserved for later profiling and optimization.
+## SLO verification table
 
-## Current evidence
+The saved **MOT17-02-FRCNN, FixedKPolicy(3), 600-frame, 30 Hz paced replay** passed its run-level timing contract:
 
-On the full 600-frame **MOT17-02-FRCNN** training sequence, a single sequential
-baseline/adaptive experiment using YOLO11n ONNX and one CPU thread measured:
+| Metric | Verified measurement | Target | Timing status |
+|---|---:|---:|---|
+| Source-capped throughput | **30.0 FPS** | ≥30.0 FPS | PASS |
+| Capture-to-output p95 | **5.56 ms** | <33 ms | PASS |
+| Capture-to-output p99 | **5.61 ms** | <33 ms | PASS |
+| Deadline misses | **0.17%** (1/600; fraction 0.001667) | <1.0% | PASS |
 
-| Metric | Always detect + LK | Adaptive + LK |
-|---|---:|---:|
-| Throughput | 3.84 FPS | 4.21 FPS |
-| Detector calls | 600 | 484 |
-| HOTA | 25.82 | 25.94 |
-| MOTA | 20.62 | 20.83 |
-| IDF1 | 25.48 | 25.85 |
-| ID switches | 136 | 112 |
-| Mean process CPU | 96.22% | 92.23% |
-| Sampled peak RSS | 258.50 MiB | 275.59 MiB |
-| p95 pipeline latency | 325.35 ms | 400.62 ms |
+**This run published zero tracks in all 600 frames.** Detector freshness was null; none of the completed correction proposals was fused into a live track. These numbers demonstrate timely frame publication under this workload, not successful 30 FPS tracking. HOTA/MOTA/IDF1 remain unevaluated. Physical-camera latency, repeated-run robustness, power savings and tracking fidelity are not established.
 
-Adaptive scheduling reduced inference by **19.3%** and increased throughput by
-**9.6%** in this run. RAM and tail latency increased. These results describe
-one sequence and one timing repetition on a macOS ARM CPU host; they do not
-establish real-time 30 FPS edge deployment, energy savings, or a general gain
-across datasets. The project title describes the research objective.
-HOTA/MOTA/IDF1 use percentage units; CPU 100% represents one logical core.
+The detector completed 123 calls; 77 pending requests were superseded. Result rejection counts were 88 for target lag, 28 for replay budget, five for deadline headroom and one for commit budget. Detector service averaged 82.82 ms. Process CPU averaged 110.67% (100% = one logical core); sampled peak RSS was 328.94 MiB. Idle preflight averaged 3.60% host CPU; thermal conditions were uncontrolled. Throughput is capped at source rate by the verifier; the runtime's raw short-window estimate was 30.0419 FPS.
 
-- [Architecture and tracker semantics](docs/architecture.md)
-- [Reproducing the real experiment](docs/reproducibility.md)
-- [Experiment protocol and full results](docs/results-mot17-02.md)
-- [Machine-readable measured results](docs/results-mot17-02.json)
+[Original SLO report](results/slos/mot17-02-fixed3/slo_report.json) · [Frame ledger](results/slos/mot17-02-fixed3/runtime/frames.jsonl) · [Evidence and limitations](docs/verified-performance.md)
 
-## Repository structure
+## Localized ROI optimization
 
-```text
-.
-├── README.md
-├── requirements.txt
-├── requirements-eval.txt            # isolated TrackEval dependencies
-├── .gitignore
-├── docs/                           # architecture, reproduction and results
-├── configs/phase1.json              # protocol reference
-├── src/
-│   ├── __init__.py
-│   ├── detector.py                  # YOLOv8/11 ONNX + letterbox + class-aware NMS
-│   ├── datasets/mot17.py            # seqinfo.ini and strict frame loading
-│   ├── sort_tracker.py              # eight-state Kalman + Hungarian matching
-│   ├── tracker.py                   # LK + forward/backward checks + Hungarian IDs
-│   ├── pipeline.py                  # gating and stage timers
-│   └── benchmark.py                 # psutil, JSONL and aggregate JSON
-├── scripts/
-│   ├── __init__.py
-│   ├── run_phase1.py                # one sequence and one mode per process
-│   ├── evaluate_tracking.py         # TrackEval -> summary.json
-│   ├── grid_search.py               # adaptive hyperparameters and Pareto frontiers
-│   ├── ablation_fixed_interval.py    # K=1,2,5,10,15, repeated runs
-│   └── compare.py                   # repeated-run summaries
-├── tests/
-│   ├── test_phase1.py                # synthetic motion, gating, ONNX and logging
-│   └── test_phase1_week2.py          # dataset, Kalman, actual TrackEval and sweep
-├── csrc/
-│   ├── README.md
-│   ├── include/
-│   └── src/
-├── data/
-│   ├── raw/                        # licensed MOT17/VisDrone inputs
-│   └── processed/                  # future canonical dataset adapters
-├── models/
-├── results/
-├── reports/
-└── notebooks/
-```
+The original code passed an entire 1080p image to `goodFeaturesToTrack` for each track, despite using a bounding-box output mask. The shared selector now crops the image first, uses a crop-local mask, restores global point coordinates, and enforces strict box bounds.
 
-Planned additions (not implemented): `src/datasets/visdrone.py`, `scripts/profile.py`, `scripts/quantize.py`,
-`csrc/CMakeLists.txt`, `csrc/bindings.cpp`, `csrc/include/gating.hpp`,
-`csrc/src/gating.cpp`, `reports/ablations/`, and `reports/paper/`.
+Native feature-call attribution fell from **114.62 to 1.31 ms/frame** (approximately **98.86%**). The separate paired selector benchmark, including mask construction and coordinate offsets, measured **147.80 to 2.10 ms/frame: 98.58%**, or roughly 98.5%. These are different measurement boundaries. Both describe feature selection rather than total pipeline speedup; corner populations changed, and post-change fidelity remains unqualified.
 
-## Setup (Python 3.11+; validated locally with Python 3.13)
+[ROI results and repeat variation](reports/roi-features/results.md) · [Blameless gating COE](docs/POSTMORTEM_GATING.md)
+
+## Quick start
+
+Use Python 3.13 and a development environment separate from saved benchmark environments:
 
 ```bash
-cd EC-CV-Research
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m pip install pytest onnx
-python3 -m venv .venv-eval
-.venv-eval/bin/python -m pip install -r requirements-eval.txt
-python -m pytest -q
+python3.13 -m venv .venv-dev
+source .venv-dev/bin/activate
+pip install -e '.[dev,eval]'
+export EVAL_PYTHON="$PWD/.venv-dev/bin/python"
+make test
+make lint
 ```
 
-Export a **detection** checkpoint in a separate environment so PyTorch and GUI
-OpenCV dependencies do not contaminate the benchmark environment:
+`pip install -e .` installs only runtime dependencies. `make install` adds development tools. Native C++ gating is optional and is not required by the async runtime. MOT17 images/annotations and model weights must be acquired separately; do not assume a clean clone contains them.
+
+Run a new SLO experiment (idle preflight is enforced; existing output directories are never overwritten):
 
 ```bash
-python3 -m venv /tmp/eccv-export-env
-/tmp/eccv-export-env/bin/python -m pip install ultralytics onnx
-/tmp/eccv-export-env/bin/python -c 'from ultralytics import YOLO; YOLO("yolo11n.pt").export(format="onnx", imgsz=640, batch=1, dynamic=False, half=False, nms=False, simplify=False, opset=17, device="cpu")'
-mv yolo11n.onnx models/yolo11n.onnx
-python -m pip freeze > reports/environment.txt
+python -m scripts.verify_slos \
+  --sequence data/raw/MOT17/train/MOT17-02-FRCNN \
+  --model models/yolo11n.onnx --policy fixed_k --k 3 \
+  --output results/slos/mot17-02-fixed3-repeat
 ```
 
-`yolov8n.pt` is also supported with the same export options. The wrapper expects
-float32 NCHW input and raw `[1, 4+num_classes, N]` output. It rejects embedded-NMS,
-segmentation, pose, YOLOv5 and other incompatible outputs. Default COCO class 0
-means person. A custom model needs its own `--num-classes` and `--classes`.
-
-## Baseline versus adaptive
-
-Download a MOT17 training sequence from https://motchallenge.net/data/MOT17/
-and place it under `data/raw/MOT17/train/`. Preserve `seqinfo.ini`, `gt/gt.txt`,
-and `img1/`. Use one detector suffix per physical sequence to avoid counting
-MOT17's duplicated image sequences three times. This pipeline runs its own
-private detector and does not consume MOT17 public detections.
+Recheck the saved telemetry without inference:
 
 ```bash
-source .venv/bin/activate
-SEQ=data/raw/MOT17/train/MOT17-02-FRCNN/img1
-python -m scripts.run_phase1 --model models/yolo11n.onnx --source "$SEQ" --mode baseline --output results/baseline-1 --threads 1
-python -m scripts.run_phase1 --model models/yolo11n.onnx --source "$SEQ" --mode adaptive --output results/adaptive-1 --threads 1 --max-interval 10 --min-confidence 0.6 --max-displacement 0.15
-python -m scripts.compare results/baseline-1 results/adaptive-1
+python -m scripts.verify_slos \
+  --run-dir results/slos/mot17-02-fixed3/runtime \
+  --output results/slos/mot17-02-fixed3-recheck
 ```
 
-A video path can replace `--source "$SEQ"`. Image sequences must use zero-padded
-filenames and contain every frame; exported frame IDs are one-based sequence
-positions. Use full sequences for accuracy evaluation. `--max-frames 300` is
-useful only for a smoke test. Outputs refuse to overwrite an existing directory.
+The verifier writes `slo_report.json` and `slo_report.md`, plus runtime telemetry for a new run. Exit 0 means all timing/integrity gates pass, 1 means a measured gate fails, and 2 means invalid input or deferred execution. A timing PASS is never tracking release approval. See the [machine-readable contract and ADRs](docs/DESIGN.md).
 
-For performance, run at least five repetitions per mode in fresh processes;
-alternate baseline/adaptive order, use distinct output directories, keep the
-same frame range, threads, resolution and weights, and record temperature,
-power mode, hardware, OS and background load. Report run-level mean and SD
-with per-run latency quantiles; frames are correlated and are not independent
-experimental replicates. Reserve held-out sequences for evaluation; tune gates
-only on development sequences. The CLI records flags, packages and model hash.
+## Architecture and evaluation
 
-## Week 2: MOT17 and eight-state SORT
+| Component | Responsibility |
+|---|---|
+| `src/async_pipeline.py` | Main-thread ownership, propagation, nonblocking admission and guarded fusion |
+| `src/runtime/` | Bounded queues, detector worker, leased history and motion replay |
+| `src/schedulers/` | Fixed-K, Kalman uncertainty, adaptive heuristic, every-frame oracle reference |
+| `src/features.py` | Cropped ROI feature selection shared by tracker and replay worker |
+| `src/detector.py` | Person-only YOLO ONNX preprocessing, execution and NMS |
+| `src/pipeline.py`, `src/sort_tracker.py` | Synchronous controls and eight-state SORT variant |
+| `scripts/run_async_evaluation.py` | Full-sequence causal and deadline-valid accuracy evaluation |
+| `scripts/ablation_policies.py`, `scripts/plot_pareto.py` | Policy sweep and accuracy/performance figures |
 
-The dataset adapter accepts `data/raw/MOT17/train/<sequence>/` with `seqinfo.ini`,
-`img1/` (or the declared `imDir`) and optional `gt/gt.txt`. It checks numeric
-frame IDs 1 through `seqLength`, missing/duplicate/extra frames, and decoded
-image dimensions. It loads images lazily and exposes FPS, dimensions, original
-IDs, and timestamps `(frame_id - 1) / frame_rate`. Ground truth is required only
-by evaluation, never by tracking. `seqinfo.ini` does not supply calibrated
-camera intrinsics or extrinsics; those are not invented.
+The `OraclePolicy` reference requests every frame through the same queues; it has no theoretical optimality claim. The earlier synchronous 48-configuration grid is complete. Its [Pareto plot](reports/ablations/pareto_frontier.png) is historical accuracy-versus-inference evidence, not an async policy frontier. The full real four-policy ROI sweep remains pending.
 
-```python
-from src.datasets.mot17 import MOT17Dataset
+The original synchronous MOT17-02 comparison measured 3.84→4.21 FPS, 600→484 detector calls and HOTA 25.82→25.94. Preserve those [historical results](docs/results-mot17-02.md) separately from the ROI profile and empty-output async run.
 
-for sequence in MOT17Dataset("data/raw/MOT17", split="train"):
-    print(sequence.metadata)
-    for frame in sequence:
-        image, frame_id = frame.image, frame.frame_id
-```
+## Documentation and validation
 
-The dataset collection defaults to the FRCNN suffix to avoid counting the same
-video three times; `detector_suffix="DPM"` or `"SDP"` selects another copy.
-The runner accepts a sequence directory or its `img1/` path and records metadata.
+- [Architecture](docs/architecture.md), [implemented async API](docs/async-runtime.md), [scheduler contracts](docs/schedulers.md).
+- [Design/SLO contract](docs/DESIGN.md), [performance evidence](docs/verified-performance.md), [technical report](reports/final_report_draft.md).
+- [Development, CI and evaluation commands](docs/engineering.md), [profiling](docs/pipeline-profiling.md), [historical reproducibility](docs/reproducibility.md).
 
-The original [SORT implementation](https://github.com/abewley/sort) uses seven
-states. Our requested **eight-state SORT variant** uses
-`[cx, cy, area, aspect_ratio, vx, vy, varea, vaspect_ratio]`, constant velocity,
-a Joseph-form covariance update, and class-aware Hungarian IoU matching. This
-is an explicit variant, not an exact reproduction of the published baseline.
-Kalman time is measured in video frames, including skipped inference frames.
+Ruff and strict mypy cover the source tree; pytest includes deterministic async lifecycle/overload/fusion tests, ROI containment, scheduler boundaries, synthetic ONNX/TrackEval integration, and strict SLO failure cases. Optional native tests require the separate extension build. The publication validation records the current full-suite outcome; older reports retain their original test counts. CI configuration and local checks are distinct from a remotely completed GitHub Actions run.
 
-`SortTracker.step(detections)` accepts the detector's `(N,6)` array
-`[x1,y1,x2,y2,score,class]` and returns objects exposing `id`, `box`, and `score`.
-Call it exactly once per video frame. `step(None)` means inference was skipped
-and emits confirmed predictions. An empty `(0,6)` array means the detector ran
-but found no objects; unmatched tracks are suppressed until reacquired.
-`max_age=30` counts frames since the last match; `min_hits=1` confirms tracks at
-birth. Higher `min_hits` counts matched detector observations, so confirmation
-is delayed more for larger K. Neither this tracker nor LK performs re-ID.
-
-```bash
-source .venv/bin/activate
-SEQ=data/raw/MOT17/train/MOT17-02-FRCNN
-python -m scripts.run_phase1 --model models/yolo11n.onnx --source "$SEQ" --tracker sort --mode baseline --output results/sort-baseline --threads 1
-python -m scripts.run_phase1 --model models/yolo11n.onnx --source "$SEQ" --tracker sort --mode fixed --max-interval 5 --output results/sort-k5 --threads 1
-```
-
-Existing LK baseline/adaptive commands retain their behavior. LK also supports
-`--mode fixed` for controlled future comparisons. SORT currently supports
-baseline and fixed scheduling; `--tracker sort --mode adaptive` is rejected
-because LK confidence is not a Kalman uncertainty estimate.
-
-## Automated accuracy evaluation
-
-Install `requirements-eval.txt` in `.venv-eval` as shown above. The pinned
-[TrackEval package](https://pypi.org/project/trackeval/1.3.0/) supports modern
-NumPy; the previous NumPy 1.23 workaround for older source is no longer needed.
-Keep evaluation isolated so its plotting and OpenCV packages do not change
-benchmark timings. `EVAL_PYTHON=/path/to/python` overrides the evaluation
-interpreter used by integration tests.
-
-```bash
-.venv-eval/bin/python -m scripts.evaluate_tracking --sequence "$SEQ" --run-dir results/sort-baseline
-.venv-eval/bin/python -m scripts.evaluate_tracking --sequence "$SEQ" --run-dir results/sort-k5
-```
-
-The evaluator stages `tracks.txt` into TrackEval's expected layout, enables
-MOT17 pedestrian/distractor preprocessing, and runs HOTA, CLEAR, and Identity
-metrics. It atomically adds **HOTA, MOTA, IDF1, IDSW** to the existing
-`summary.json`, preserving latency/FPS/CPU/RAM measurements. HOTA is the mean
-over localization thresholds. HOTA/MOTA/IDF1 are percentage points (MOTA may
-be negative); IDSW is an integer count. It saves evaluator version, GT and
-prediction SHA-256 hashes, timestamp, and metric units. Detailed TrackEval
-reports go under the run's `trackeval/` directory. Evaluation time is excluded
-from measured throughput. Exceptions leave the summary unchanged.
-
-Evaluation requires a complete full-sequence run, a contiguous `frames.jsonl`
-ledger, matching source metadata, and COCO person-only `--classes 0`. Missing
-prediction rows represent empty frames and are valid, including an entirely
-empty file. Duplicate frame/ID pairs, invalid boxes, out-of-range frame IDs,
-and truncated runs are rejected. Exported MOT coordinates are one-based;
-internal boxes are zero-based. Existing Week 1 full-sequence runs with the same
-source, frame ledger, and class metadata can also be evaluated.
-
-## Fixed-interval ablation
-
-```bash
-python -m scripts.ablation_fixed_interval \
-  --sequence "$SEQ" --model models/yolo11n.onnx \
-  --output results/fixed-interval-week2 --repeats 5 --threads 1 \
-  --eval-python .venv-eval/bin/python
-```
-
-Default K values are **1, 2, 5, 10, 15**. Detection runs exactly on frames
-`1, 1+K, 1+2K, ...`, even when there are no tracks; no failure-triggered extra
-inferences occur. All other tracker parameters remain constant across K.
-`max_age` must be at least `max(K)-1` so skipped frames do not cause forced
-expiry. K=1 is the always-detect control using the same tracker.
-
-Each repetition shuffles K order with a recorded seed and runs each benchmark
-in a fresh process. Evaluation also runs in a separate process. Each run logs
-per-frame latency, FPS, CPU/RAM, detections, and all tracking metrics. Results:
-
-- `manifest.json`: configuration, planned order, completed jobs, failure status.
-- `runs.json`: individual measurements and their source run paths.
-- `tradeoff.csv` and `tradeoff.json`: per-K HOTA, MOTA, IDF1, IDSW, inference
-  reduction, FPS, CPU and RAM, with run-level mean and sample SD. SD is null
-  for one repetition. These files describe only completed jobs; always check
-  the manifest for full sweep completion.
-- `kXX-rYY/`: benchmark outputs plus evaluation reports; sibling `.log` files
-  retain subprocess output for diagnosis.
-
-Inference reduction is `100 * (1 - detector_calls / frames)`, relative to
-K=1. Finite-sequence rounding is included, so it need not equal `100*(1-1/K)`.
-FPS is end-to-end measured throughput, not the mean of reciprocal latencies.
-Repeated runs on one sequence measure timing variation, not generalization;
-run held-out sequences separately and use TrackEval's sequence aggregation
-for corpus scores rather than naively averaging sequence metrics.
-
-VisDrone requires its own annotation/class adapter and protocol and remains
-outside this Week 2 implementation. Synthetic fixtures verify implementation
-correctness; the separately documented MOT17-02 experiment provides real-sequence
-accuracy measurements. Edge energy remains unmeasured.
-
-## Phase 2: adaptive grid search
-
-`scripts/grid_search.py` sweeps 48 configurations across maximum interval,
-confidence and displacement. It saves per-run performance, optional TrackEval
-accuracy, and Pareto JSON/CSV exports under `results/grid_search/`. Searches
-support interruptions and resume. See [the grid-search guide](docs/grid-search.md)
-for the command, quality limits, output fields and experimental protocol.
-
-## Instrumentation and limitations
-
-- `frames.jsonl`: per-frame pipeline/flow/detector/association/decode latency,
-  trigger, pre-detection confidence, normalized displacement, tracks, RSS, CPU.
-- `summary.json`: throughput (frames / measured wall time), pipeline-only FPS,
-  mean/p50/p95/p99 latency, process CPU seconds and mean usage, sampled peak RSS,
-  inference fraction and run metadata. Failed runs are marked partial.
-- Pipeline timing excludes decode and export. Wall throughput includes input,
-  MOT/JSONL output and instrumentation, but excludes model loading and detector
-  warmup. Tracker initialization remains measured. `frame_work_ms` ends before
-  resource sampling and JSONL writing. JSONL streams; latency/RSS arrays use
-  O(number of frames) memory for exact quantiles.
-- CPU is process usage: 100% = one logical core; multithreaded use can exceed
-  100%. Nonblocking samples are refreshed no faster than 100 ms; null means
-  no sample yet, and `cpu_sample_updated` distinguishes held values. Aggregate
-  CPU uses CPU-time / wall-time, not an average of noisy per-frame percentages.
-- RSS is sampled process resident memory, not allocator peak or whole-device RAM.
-  Power remains null: measure watts/joules with the target board's sensor or an
-  external meter. CPU utilization cannot establish energy savings.
-- For `--tracker lk`, both baseline/adaptive modes run LK and identical
-  association. For `--tracker sort`, baseline/fixed modes share the eight-state
-  Kalman tracker. In each pair, the scheduling comparison holds the tracker fixed.
-- Confidence multiplies point survival, forward/backward consistency and motion
-  coherence since the last detection. It is a heuristic, not a probability.
-  Bounding boxes use median translation only: scale change, rotation, coherent
-  drift and occlusion can defeat the gate. Detection has no re-identification.
-- In LK adaptive mode, low-texture/no-track scenes force inference. Refresh occurs within the maximum
-  interval, limiting but not eliminating delayed discovery of new objects.
-  Association retains missing IDs for two detector updates, suppressing their
-  boxes until matched again. ID switches remain possible.
-
-Week 2 code supports MOT17 loading, an eight-state SORT variant, automatic
-metrics and fixed-K ablations. The first real MOT17-02 experiment is documented
-above; repeated timing trials, multi-sequence validation, and the real fixed-K
-sweep remain to be completed. Weeks 3–4 add Farneback and
-validation-only Pareto search; Weeks 5–6 add profiled native work/INT8; Weeks 7–8
-freeze experiments and report accuracy-throughput-energy tradeoffs.
-
-References: [Ultralytics export](https://docs.ultralytics.com/modes/export/),
-[ONNX Runtime API](https://onnxruntime.ai/docs/api/python/api_summary.html),
-[OpenCV LK](https://docs.opencv.org/4.7.0/dc/d6b/group__video__track.html),
-[psutil](https://psutil.readthedocs.io/stable/),
-[TrackEval](https://github.com/JonathonLuiten/TrackEval).
+Publication check (2026-10-18): `make test` passed **137 tests**; `make lint` passed Ruff and strict mypy across **26 source modules**. See [validation record](reports/publication-validation/validation.json). These software checks do not qualify tracking accuracy.

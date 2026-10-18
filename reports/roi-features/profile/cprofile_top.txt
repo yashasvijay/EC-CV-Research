@@ -1,0 +1,38 @@
+         342605 function calls (334705 primitive calls) in 6.194 seconds
+
+   Ordered by: cumulative time
+   List reduced from 154 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+       50    0.000    0.000    5.800    0.116 profile_pipeline.py:90(__call__)
+       50    0.008    0.000    5.800    0.116 detector.py:30(__call__)
+       50    4.151    0.083    4.180    0.084 onnxruntime_inference_collection.py:372(run)
+       50    0.018    0.000    1.564    0.031 tracker.py:38(predict)
+     1162    1.488    0.001    1.488    0.001 {calcOpticalFlowPyrLK}
+       50    0.000    0.000    0.253    0.005 mot17.py:80(read_frame)
+       50    0.253    0.005    0.253    0.005 {imread}
+       50    0.004    0.000    0.138    0.003 tracker.py:87(update)
+      507    0.008    0.000    0.077    0.000 features.py:5(select_roi_features)
+      507    0.065    0.000    0.065    0.000 {goodFeaturesToTrack}
+     5982    0.019    0.000    0.037    0.000 tracker.py:9(box_iou)
+     1743    0.001    0.000    0.032    0.000 _function_base_impl.py:3914(median)
+     1743    0.002    0.000    0.031    0.000 _function_base_impl.py:3827(_ureduce)
+     1743    0.005    0.000    0.027    0.000 _function_base_impl.py:4003(_median)
+       50    0.025    0.001    0.025    0.001 {method 'argmax' of 'numpy.ndarray' objects}
+      557    0.016    0.000    0.016    0.000 {built-in method numpy.ascontiguousarray}
+    11964    0.004    0.000    0.013    0.000 fromnumeric.py:3325(prod)
+       50    0.013    0.000    0.013    0.000 {cvtColor}
+    26082    0.012    0.000    0.012    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+    16200    0.003    0.000    0.012    0.000 {built-in method builtins.next}
+       50    0.012    0.000    0.012    0.000 {resize}
+     2324    0.006    0.000    0.011    0.000 _methods.py:115(_mean)
+    12064    0.005    0.000    0.010    0.000 fromnumeric.py:66(_wrapreduction)
+     8100    0.002    0.000    0.010    0.000 contextlib.py:145(__exit__)
+     1743    0.001    0.000    0.009    0.000 fromnumeric.py:3737(mean)
+    16200    0.007    0.000    0.009    0.000 profile_pipeline.py:53(span)
+     2324    0.004    0.000    0.007    0.000 _linalg.py:2598(norm)
+     1238    0.006    0.000    0.006    0.000 {method 'copy' of 'numpy.ndarray' objects}
+     8100    0.001    0.000    0.006    0.000 contextlib.py:136(__enter__)
+     1743    0.002    0.000    0.005    0.000 _utils_impl.py:407(_median_nancheck)
+
+

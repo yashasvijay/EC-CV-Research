@@ -1,0 +1,27 @@
+{
+  "checked_at_utc": "2026-10-13T16:06:46.605670+00:00",
+  "cooldown_seconds": 20,
+  "sample_interval_seconds": 2,
+  "sample_count": 6,
+  "competing_script_processes": [],
+  "cpu_thresholds": {
+    "mean_max_percent": 5,
+    "single_sample_max_percent": 10
+  },
+  "thermal_conditions": "not measured or controlled",
+  "system_cpu_percent_samples": [
+    5.7,
+    2.2,
+    3.3,
+    2.9,
+    3.3,
+    2.9
+  ],
+  "system_cpu_percent_mean": 3.3833333333333333,
+  "cpu_idle_pass": true,
+  "grid_search_status": "complete",
+  "grid_completed_runs": 48,
+  "profiling_started": true,
+  "decision": "profile_completed",
+  "profile_status": "complete"
+}

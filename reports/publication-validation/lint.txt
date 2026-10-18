@@ -1,0 +1,4 @@
+python -m ruff check src scripts tests
+All checks passed!
+python -m mypy src
+Success: no issues found in 26 source files

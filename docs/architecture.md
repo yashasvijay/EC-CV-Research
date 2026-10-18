@@ -1,5 +1,7 @@
 # Architecture
 
+> Current scope (2026-10-18): Current primary runtime: AsyncTrackerRuntime with one state-owning tracking thread, a detector/replay worker, bounded latest-pending queues and cropped ROI features. The synchronous flow below documents retained controls; their measurement boundaries differ from capture-to-output async timing. See [verified performance](verified-performance.md).
+
 The pipeline receives sequential BGR images and produces persistent track IDs
 and bounding boxes. The detector accepts batch-one float32 YOLOv8/11 detection
 ONNX exports. Sparse optical flow and the eight-state Kalman tracker are

@@ -1,0 +1,31 @@
+{
+  "timestamp_utc": "2026-10-18T20:22:50.821892+00:00",
+  "status": "passed",
+  "make_test": {
+    "passed": 137,
+    "failed": 0,
+    "seconds": 79.0
+  },
+  "make_lint": {
+    "ruff": "passed",
+    "strict_mypy": "passed",
+    "source_modules": 26
+  },
+  "slo_input_hashes_verified": true,
+  "slo_recomputed_status": "PASS",
+  "frames": 600,
+  "frames_with_tracks": 0,
+  "tracking_release_qualified": false,
+  "scope": "Empty-output frame-publication timing; no tracking-fidelity claim",
+  "slo_artifact_sha256": {
+    "slo_report.md": "6742cc044cb00182d7bea7584219e7fe2726fd66acf616bc1b3d9a0422a406e4",
+    "slo_report.json": "61007ea559b40f015cd6a131d8e28d580b275344546e664851d274133b0cbc21",
+    "DESIGN.at-run.md": "7e2079eca0bbf479f3ede028163c439ca133b2e114f1811fe13457071ed66b3b",
+    "preflight.json": "b390962146387cf15e6a6d89efd43bf94d7265bbbb7b0bc711afb17bd0794ef6",
+    "runtime/summary.json": "126d1066f26c0b794cc6caf7a9fc0f09a0485e32f0f3e3c0bd9b90e3d64ffa10",
+    "runtime/deadline_tracks.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runtime/tracks.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runtime/events.jsonl": "74cd3d8ad5ba15d89863ce566a6082195fdaaeff00b50a2cb36d6688d92b9c39",
+    "runtime/frames.jsonl": "6123a0dd8fec40ff37bf7020285b86c501859537e836072443426502affcfca1"
+  }
+}

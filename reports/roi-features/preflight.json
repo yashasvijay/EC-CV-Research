@@ -1,0 +1,22 @@
+{
+  "timestamp_utc": "2026-10-16T01:40:47.464276+00:00",
+  "cooldown_seconds": 20,
+  "sample_interval_seconds": 2,
+  "cpu_percent_samples": [
+    5.2,
+    3.3,
+    1.9,
+    4.6,
+    7.8,
+    3.8
+  ],
+  "mean_cpu_percent": 4.433333333333333,
+  "idle_passed": true,
+  "grid_statuses": {
+    "results/grid_search/manifest.json": "complete",
+    "results/grid_search/summary.json": "complete"
+  },
+  "historical_artifacts_unchanged": true,
+  "competing_experiment_processes": [],
+  "thermal_conditions": "uncontrolled; CPU samples do not establish controlled thermal conditions"
+}
