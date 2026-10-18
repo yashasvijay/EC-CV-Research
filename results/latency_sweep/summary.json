@@ -1,0 +1,49 @@
+{
+  "status": "deferred",
+  "runs": [
+    {
+      "injected_detector_min_ms": 160.0,
+      "frames": 600,
+      "slo_status": "FAIL",
+      "track_frame_fraction": 1.0,
+      "useful_fusion_ratio": 0.0,
+      "deadline_miss_fraction": 0.175,
+      "throughput_fps": 29.806608205765446,
+      "p95_e2e_ms": 173.38263364999992,
+      "p99_e2e_ms": 211.56872342,
+      "fallback_attempts": 14,
+      "fallback_attempt_fraction": 0.023333333333333334,
+      "fallback_attempts_per_second": 0.6954875248011938,
+      "bootstrap_cooldown_frames": 0,
+      "observed_service_mean_ms": 182.94064407608698,
+      "requests_superseded": 103,
+      "process_cpu_percent_mean": 45.92637705296821,
+      "sampled_peak_rss_mib": 232.59375,
+      "run_dir": "results/latency_sweep/latency-160ms-r01",
+      "repeat": 1
+    },
+    {
+      "injected_detector_min_ms": 80.0,
+      "frames": 600,
+      "slo_status": "PASS",
+      "track_frame_fraction": 1.0,
+      "useful_fusion_ratio": 0.3583815028901734,
+      "deadline_miss_fraction": 0.005,
+      "throughput_fps": 30.0,
+      "p95_e2e_ms": 26.621411050000003,
+      "p99_e2e_ms": 29.698941249999994,
+      "fallback_attempts": 1,
+      "fallback_attempt_fraction": 0.0016666666666666668,
+      "fallback_attempts_per_second": 0.05001759660563191,
+      "bootstrap_cooldown_frames": 0,
+      "observed_service_mean_ms": 85.08910713872832,
+      "requests_superseded": 26,
+      "process_cpu_percent_mean": 56.53225472698509,
+      "sampled_peak_rss_mib": 227.171875,
+      "run_dir": "results/latency_sweep/latency-80ms-r01",
+      "repeat": 1
+    }
+  ],
+  "definition": "useful_fusion_ratio counts background runs with >=1 accepted correction, not individual boxes",
+  "scope": "synthetic exact detections plus wall-delay injection; not HOTA/MOTA, energy or hardware speed equivalence"
+}

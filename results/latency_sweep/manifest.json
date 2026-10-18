@@ -1,0 +1,28 @@
+{
+  "status": "deferred",
+  "workload": "synthetic latency injection; not real detector hardware",
+  "plan": [
+    [
+      160.0,
+      1
+    ],
+    [
+      80.0,
+      1
+    ],
+    [
+      320.0,
+      1
+    ],
+    [
+      40.0,
+      1
+    ]
+  ],
+  "completed": [
+    "latency-160ms-r01",
+    "latency-80ms-r01"
+  ],
+  "driver_sha256": "4709637596649644b20daa4a0d002ceb2abcc2d6bcb4a5df1b253fc653dc165c",
+  "reason": "Host is not idle; no new case started"
+}
