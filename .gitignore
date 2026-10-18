@@ -14,3 +14,8 @@ data/*/*
 models/*
 results/*
 !**/.gitkeep
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/

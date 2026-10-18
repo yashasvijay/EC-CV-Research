@@ -1,0 +1,30 @@
+name: Python quality
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.13']
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install editable package and test dependencies
+        run: python -m pip install -e '.[dev,eval]'
+      - name: Lint and strict type checks
+        run: make lint
+      - name: Full Python suite
+        run: make test

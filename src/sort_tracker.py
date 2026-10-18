@@ -4,11 +4,16 @@ Original SORT has seven states (no ratio velocity). This implementation adds
 the requested eighth state and explicit skipped-inference semantics. Units are
 pixels and frames, not seconds. No appearance features or re-identification.
 """
+
+from __future__ import annotations
+from .types import Array
+
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 
-def measurement(box):
+def measurement(box: Array) -> Array:
+    """Convert a positive xyxy box into center, area and aspect ratio."""
     box = np.asarray(box, dtype=np.float64)
     if box.shape != (4,) or not np.isfinite(box).all() or np.any(box[2:] <= box[:2]):
         raise ValueError("Expected finite, positive-area xyxy box")
@@ -17,44 +22,54 @@ def measurement(box):
 
 
 class KalmanBox:
-    def __init__(self, box):
+    """Eight-state box Kalman filter with frame-based motion units."""
+
+    def __init__(self, box: Array) -> None:
+        """Initialize validated configuration and owned runtime state."""
         self.x = np.zeros(8, dtype=np.float64)
         self.x[:4] = measurement(box)
-        self.P = np.diag([10., 10., 100., .1, 1000., 1000., 10000., 1.])
+        self.P = np.diag([10.0, 10.0, 100.0, 0.1, 1000.0, 1000.0, 10000.0, 1.0])
         self.H = np.eye(4, 8)
-        self.R = np.diag([1., 1., 10., .01])
+        self.R = np.diag([1.0, 1.0, 10.0, 0.01])
 
-    def _positive_shape(self):
+    def _positive_shape(self) -> None:
         for index in (2, 3):
             if self.x[index] <= 1e-6:
                 self.x[index] = 1e-6
-                self.x[index + 4] = 0.
+                self.x[index + 4] = 0.0
 
     @property
-    def box(self):
+    def box(self) -> Array:
+        """Return the current bounding box in xyxy pixel coordinates."""
         width = np.sqrt(self.x[2] * self.x[3])
         height = self.x[2] / width
         half_size = np.array([width, height]) / 2
         return np.concatenate((self.x[:2] - half_size, self.x[:2] + half_size))
 
-    def predict(self, dt=1.0):
+    def predict(self, dt: float = 1.0) -> Array:
+        """Advance track state to the next source frame."""
         if not np.isfinite(dt) or dt <= 0:
             raise ValueError("dt must be finite and positive")
         transition = np.eye(8)
         transition[:4, 4:] = np.eye(4) * dt
         # White acceleration model, with separate units for area and ratio.
-        acceleration = np.diag([1., 1., 10., .001])
-        noise = np.block([[dt**4 / 4 * acceleration, dt**3 / 2 * acceleration],
-                          [dt**3 / 2 * acceleration, dt**2 * acceleration]])
+        acceleration = np.diag([1.0, 1.0, 10.0, 0.001])
+        noise = np.block(
+            [
+                [dt**4 / 4 * acceleration, dt**3 / 2 * acceleration],
+                [dt**3 / 2 * acceleration, dt**2 * acceleration],
+            ]
+        )
         for index in (2, 3):
             if self.x[index] + dt * self.x[index + 4] <= 1e-6:
-                self.x[index + 4] = 0.
+                self.x[index + 4] = 0.0
         self.x = transition @ self.x
         self.P = transition @ self.P @ transition.T + noise
         self._positive_shape()
         return self.box
 
-    def update(self, box):
+    def update(self, box: Array) -> Array:
+        """Fuse the current detector observations into track state."""
         innovation = measurement(box) - self.H @ self.x
         covariance = self.H @ self.P @ self.H.T + self.R
         gain = np.linalg.solve(covariance, self.H @ self.P).T
@@ -68,7 +83,10 @@ class KalmanBox:
 
 
 class SortTrack:
-    def __init__(self, track_id, detection):
+    """Identity and lifecycle state for a Kalman box track."""
+
+    def __init__(self, track_id: int, detection: Array) -> None:
+        """Initialize validated configuration and owned runtime state."""
         self.id = track_id
         self.filter = KalmanBox(detection[:4])
         self.score, self.cls = float(detection[4]), int(detection[5])
@@ -76,17 +94,22 @@ class SortTrack:
         self.matched_at_last_detection = True
 
     @property
-    def box(self):
+    def box(self) -> Array:
+        """Return the current bounding box in xyxy pixel coordinates."""
         return self.filter.box
 
 
-def pairwise_iou(boxes, detections):
+def pairwise_iou(boxes: Array, detections: Array) -> Array:
+    """Compute all pairwise box overlaps without Python object loops."""
     lower = np.maximum(boxes[:, None, :2], detections[None, :, :2])
     upper = np.minimum(boxes[:, None, 2:], detections[None, :, 2:])
     intersection = np.maximum(upper - lower, 0).prod(axis=2)
-    union = ((boxes[:, 2:] - boxes[:, :2]).prod(axis=1)[:, None]
-             + (detections[:, 2:] - detections[:, :2]).prod(axis=1)[None, :] - intersection)
-    return intersection / np.maximum(union, 1e-12)
+    union = (
+        (boxes[:, 2:] - boxes[:, :2]).prod(axis=1)[:, None]
+        + (detections[:, 2:] - detections[:, :2]).prod(axis=1)[None, :]
+        - intersection
+    )
+    return np.asarray(intersection / np.maximum(union, 1e-12))
 
 
 class SortTracker:
@@ -97,20 +120,26 @@ class SortTracker:
     outputs until reacquired. max_age counts video frames since last match.
     min_hits counts total matched detector observations (default 1).
     """
-    def __init__(self, max_age=30, min_hits=1, iou_threshold=0.3):
+
+    def __init__(self, max_age: int = 30, min_hits: int = 1, iou_threshold: float = 0.3) -> None:
+        """Initialize validated configuration and owned runtime state."""
         if max_age < 0 or min_hits < 1 or not 0 < iou_threshold <= 1:
             raise ValueError("Invalid SORT age, hits, or IoU threshold")
         self.max_age, self.min_hits, self.iou_threshold = max_age, min_hits, iou_threshold
-        self.tracks, self.next_id = [], 1
+        self.tracks: list[SortTrack] = []
+        self.next_id = 1
 
-    def step(self, detections=None):
+    def step(self, detections: Array | None = None) -> list[SortTrack]:
+        """Process one source frame and return tracks with timing telemetry."""
         if detections is not None:
             detections = np.asarray(detections, dtype=np.float64)
             if detections.ndim != 2 or detections.shape[1] != 6:
                 raise ValueError("detections must have shape (N,6): xyxy,score,class")
-            if (not np.isfinite(detections).all()
-                    or np.any(detections[:, 2:4] <= detections[:, :2])
-                    or np.any(detections[:, 5] != np.floor(detections[:, 5]))):
+            if (
+                not np.isfinite(detections).all()
+                or np.any(detections[:, 2:4] <= detections[:, :2])
+                or np.any(detections[:, 5] != np.floor(detections[:, 5]))
+            ):
                 raise ValueError("Invalid detection values")
         # A track stale at the preceding frame cannot be resurrected later.
         self.tracks = [t for t in self.tracks if t.time_since_update <= self.max_age]
@@ -127,7 +156,8 @@ class SortTracker:
                 valid = (overlaps >= self.iou_threshold) & (classes == detections[None, :, 5])
                 cost = np.where(valid, 1 - overlaps, 1e6)
                 rows, cols = linear_sum_assignment(cost)
-                for i, j in zip(rows, cols):
+                for row_index, column_index in zip(rows, cols):
+                    i, j = int(row_index), int(column_index)
                     if not valid[i, j]:
                         continue
                     track = self.tracks[i]

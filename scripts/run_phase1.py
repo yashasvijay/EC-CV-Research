@@ -1,4 +1,5 @@
 """Run one mode per process, with identical input frames and detector warmup."""
+
 import argparse
 import hashlib
 import json
@@ -69,8 +70,9 @@ def main():
     sequence = MOT17Sequence(sequence_path) if (sequence_path / "seqinfo.ini").is_file() else None
     make_frames = sequence.images if sequence else lambda: frames(args.source)
     cv2.setNumThreads(args.threads)
-    detector = YOLODetector(args.model, classes=args.classes,
-                            num_classes=args.num_classes, threads=args.threads)
+    detector = YOLODetector(
+        args.model, classes=args.classes, num_classes=args.num_classes, threads=args.threads
+    )
     warm_frames = make_frames()
     try:
         first = next(warm_frames)
@@ -81,20 +83,25 @@ def main():
     for _ in range(args.warmup):
         detector(first)
     if args.tracker == "sort":
-        pipeline = SortPipeline(detector, args.mode, args.max_interval,
-                                args.max_age, args.min_hits, args.match_iou)
+        pipeline = SortPipeline(
+            detector, args.mode, args.max_interval, args.max_age, args.min_hits, args.match_iou
+        )
     else:
-        pipeline = Pipeline(detector, args.mode, args.max_interval,
-                            args.min_confidence, args.max_displacement)
+        pipeline = Pipeline(
+            detector, args.mode, args.max_interval, args.min_confidence, args.max_displacement
+        )
     metadata = vars(args) | {
         "model_sha256": hashlib.sha256(Path(args.model).read_bytes()).hexdigest(),
-        "packages": {name: version(name) for name in
-                     ("numpy", "opencv-python-headless", "onnxruntime", "scipy", "psutil")},
+        "packages": {
+            name: version(name)
+            for name in ("numpy", "opencv-python-headless", "onnxruntime", "scipy", "psutil")
+        },
         "providers": detector.session.get_providers(),
         "cpu_convention": "100% = one logical core; may exceed 100%",
         "timing": "pipeline excludes decode/export; throughput includes decode, MOT/JSONL writes and instrumentation",
-        "tracker_description": ("8-state SORT variant" if args.tracker == "sort"
-                                else "translation LK + class-aware Hungarian IoU"),
+        "tracker_description": (
+            "8-state SORT variant" if args.tracker == "sort" else "translation LK + class-aware Hungarian IoU"
+        ),
         "sequence": sequence.metadata if sequence else None,
     }
     benchmark = Benchmark(args.output, metadata)
@@ -113,9 +120,12 @@ def main():
                 for t in tracks:
                     x, y, x2, y2 = t.box
                     # MOTChallenge uses one-based image coordinates; width/height unchanged.
-                    mot.write(f"{row['frame']},{t.id},{x+1:.3f},{y+1:.3f},{x2-x:.3f},{y2-y:.3f},{t.score:.5f},-1,-1,-1\n")
-                row.update(decode_ms=decode_ms, tracks=len(tracks),
-                           frame_work_ms=(perf_counter() - start) * 1000)
+                    mot.write(
+                        f"{row['frame']},{t.id},{x + 1:.3f},{y + 1:.3f},{x2 - x:.3f},{y2 - y:.3f},{t.score:.5f},-1,-1,-1\n"
+                    )
+                row.update(
+                    decode_ms=decode_ms, tracks=len(tracks), frame_work_ms=(perf_counter() - start) * 1000
+                )
                 benchmark.record(row)
         benchmark.metadata["status"] = "complete"
     finally:

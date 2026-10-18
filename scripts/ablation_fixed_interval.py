@@ -1,4 +1,5 @@
 """Fresh-process fixed-K inference sweep, evaluated against the same full sequence."""
+
 import argparse
 import csv
 import json
@@ -17,8 +18,16 @@ def summarize(rows):
     for interval in sorted({row["K"] for row in rows}):
         runs = [row for row in rows if row["K"] == interval]
         item = {"K": interval, "runs": len(runs)}
-        for key in ("HOTA", "MOTA", "IDF1", "IDSW", "inference_reduction_percent", "FPS",
-                    "process_cpu_percent_mean", "sampled_peak_rss_mib"):
+        for key in (
+            "HOTA",
+            "MOTA",
+            "IDF1",
+            "IDSW",
+            "inference_reduction_percent",
+            "FPS",
+            "process_cpu_percent_mean",
+            "sampled_peak_rss_mib",
+        ):
             values = [row[key] for row in runs]
             item[key] = float(np.mean(values))
             item[key + "_sd"] = float(np.std(values, ddof=1)) if len(values) > 1 else None
@@ -39,13 +48,23 @@ def main():
     parser.add_argument("--min-hits", type=int, default=1)
     parser.add_argument("--match-iou", type=float, default=0.3)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--eval-python", default=sys.executable,
-                        help="Python with requirements-eval.txt installed (e.g. .venv-eval/bin/python)")
+    parser.add_argument(
+        "--eval-python",
+        default=sys.executable,
+        help="Python with requirements-eval.txt installed (e.g. .venv-eval/bin/python)",
+    )
     args = parser.parse_args()
     intervals = args.intervals
-    if (len(set(intervals)) != len(intervals) or min(intervals) < 1 or 1 not in intervals
-            or args.repeats < 1 or args.threads < 1 or args.warmup < 0
-            or args.min_hits < 1 or not 0 < args.match_iou <= 1):
+    if (
+        len(set(intervals)) != len(intervals)
+        or min(intervals) < 1
+        or 1 not in intervals
+        or args.repeats < 1
+        or args.threads < 1
+        or args.warmup < 0
+        or args.min_hits < 1
+        or not 0 < args.match_iou <= 1
+    ):
         parser.error("Use unique positive intervals including K=1 and valid run parameters")
     if args.max_age < max(intervals) - 1:
         parser.error("max-age must cover skipped frames for every K; keep it fixed across the sweep")
@@ -67,32 +86,82 @@ def main():
         order = intervals.copy()
         rng.shuffle(order)
         plan.extend({"repeat": repeat, "K": interval} for interval in order)
-    manifest = {"status": "running", "config": vars(args), "sequence": sequence.metadata,
-                "order": plan, "completed": []}
+    manifest = {
+        "status": "running",
+        "config": vars(args),
+        "sequence": sequence.metadata,
+        "order": plan,
+        "completed": [],
+    }
     atomic_json(output / "manifest.json", manifest)
     rows = []
     try:
         for job in plan:
             interval, repeat = job["K"], job["repeat"]
             run = output / f"k{interval:02d}-r{repeat:02d}"
-            command = [sys.executable, "-m", "scripts.run_phase1", "--model", str(model),
-                       "--source", str(sequence.path), "--output", str(run), "--tracker", "sort",
-                       "--mode", "fixed", "--max-interval", str(interval),
-                       "--threads", str(args.threads), "--warmup", str(args.warmup),
-                       "--max-age", str(args.max_age), "--min-hits", str(args.min_hits),
-                       "--match-iou", str(args.match_iou), "--classes", "0"]
+            command = [
+                sys.executable,
+                "-m",
+                "scripts.run_phase1",
+                "--model",
+                str(model),
+                "--source",
+                str(sequence.path),
+                "--output",
+                str(run),
+                "--tracker",
+                "sort",
+                "--mode",
+                "fixed",
+                "--max-interval",
+                str(interval),
+                "--threads",
+                str(args.threads),
+                "--warmup",
+                str(args.warmup),
+                "--max-age",
+                str(args.max_age),
+                "--min-hits",
+                str(args.min_hits),
+                "--match-iou",
+                str(args.match_iou),
+                "--classes",
+                "0",
+            ]
             print(f"Running K={interval}, repetition {repeat}", flush=True)
             with (output / f"{run.name}.log").open("w") as log:
                 subprocess.run(command, check=True, stdout=log, stderr=subprocess.STDOUT)
-                subprocess.run([eval_python, "-m", "scripts.evaluate_tracking", "--sequence",
-                                str(sequence.path), "--run-dir", str(run)], check=True,
-                               stdout=log, stderr=subprocess.STDOUT)
+                subprocess.run(
+                    [
+                        eval_python,
+                        "-m",
+                        "scripts.evaluate_tracking",
+                        "--sequence",
+                        str(sequence.path),
+                        "--run-dir",
+                        str(run),
+                    ],
+                    check=True,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                )
             summary = json.loads((run / "summary.json").read_text())
-            row = job | {key: summary[key] for key in
-                         ("HOTA", "MOTA", "IDF1", "IDSW", "process_cpu_percent_mean", "sampled_peak_rss_mib")}
-            row.update(FPS=summary["throughput_fps"],
-                       inference_reduction_percent=100 * (1 - summary["detection_fraction"]),
-                       run_dir=str(run))
+            row = job | {
+                key: summary[key]
+                for key in (
+                    "HOTA",
+                    "MOTA",
+                    "IDF1",
+                    "IDSW",
+                    "process_cpu_percent_mean",
+                    "sampled_peak_rss_mib",
+                )
+            }
+            row.update(
+                FPS=summary["throughput_fps"],
+                inference_reduction_percent=100 * (1 - summary["detection_fraction"]),
+                run_dir=str(run),
+            )
             rows.append(row)
             atomic_json(output / "runs.json", rows)
             curve = summarize(rows)

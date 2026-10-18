@@ -1,25 +1,32 @@
 """Translation-only sparse LK tracker; Hungarian IoU association, not SORT."""
+
+from __future__ import annotations
+from .types import Array
+
 from dataclasses import dataclass, field
-import cv2
+from .opencv_compat import sparse_lk
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+from .features import select_roi_features
 
 
-def box_iou(a, b):
+def box_iou(a: Array, b: Array) -> float:
+    """Return intersection over union for two xyxy boxes."""
     lo = np.maximum(a[:2], b[:2])
     hi = np.minimum(a[2:], b[2:])
     intersection = np.maximum(hi - lo, 0).prod()
-    return float(intersection / max(1e-9, np.prod(a[2:]-a[:2]) +
-                                    np.prod(b[2:]-b[:2]) - intersection))
+    return float(intersection / max(1e-9, np.prod(a[2:] - a[:2]) + np.prod(b[2:] - b[:2]) - intersection))
 
 
 @dataclass
 class Track:
+    """Mutable LK track state anchored by detector observations."""
+
     id: int
-    box: np.ndarray
+    box: Array
     score: float
     cls: int
-    points: np.ndarray = field(default_factory=lambda: np.empty((0, 1, 2), np.float32))
+    points: Array = field(default_factory=lambda: np.empty((0, 1, 2), np.float32))
     confidence: float = 1.0
     displacement: float = 0.0
     fb_error: float | None = None
@@ -27,14 +34,26 @@ class Track:
 
 
 class LKTracker:
-    def __init__(self, min_points=6, max_points=60, fb_threshold=1.5,
-                 match_iou=0.3, max_missed=2):
+    """Propagate sparse ROI features and associate detector boxes by IoU."""
+
+    def __init__(
+        self,
+        min_points: int = 6,
+        max_points: int = 60,
+        fb_threshold: float = 1.5,
+        match_iou: float = 0.3,
+        max_missed: int = 2,
+    ) -> None:
+        """Initialize validated configuration and owned runtime state."""
         self.min_points, self.max_points = min_points, max_points
         self.fb_threshold, self.match_iou = fb_threshold, match_iou
         self.max_missed = max_missed  # detector updates, not video frames
-        self.tracks, self.previous, self.next_id = [], None, 1
+        self.tracks: list[Track] = []
+        self.previous: Array | None = None
+        self.next_id = 1
 
-    def predict(self, gray):
+    def predict(self, gray: Array) -> None:
+        """Advance track state to the next source frame."""
         if self.previous is None:
             self.previous = gray.copy()
             return
@@ -46,23 +65,27 @@ class LKTracker:
                 t.confidence = 0.0
                 continue
             old = t.points
-            new, status, _ = cv2.calcOpticalFlowPyrLK(self.previous, gray, old, None,
-                                                   winSize=(21, 21), maxLevel=3)
-            if new is None or not np.isfinite(new).all():
+            new, status, _ = sparse_lk(self.previous, gray, old)
+            if new is None or status is None or not np.isfinite(new).all():
                 t.confidence = 0.0
                 t.points = np.empty((0, 1, 2), np.float32)
                 continue
-            back, back_status, _ = cv2.calcOpticalFlowPyrLK(gray, self.previous, new, None,
-                                                         winSize=(21, 21), maxLevel=3)
-            if back is None:
+            back, back_status, _ = sparse_lk(gray, self.previous, new)
+            if back is None or back_status is None:
                 t.confidence = 0.0
                 continue
             errors = np.linalg.norm((back - old).reshape(-1, 2), axis=1)
             xy = new.reshape(-1, 2)
-            good = ((status.ravel() == 1) & (back_status.ravel() == 1) &
-                    np.isfinite(errors) & (errors <= self.fb_threshold) &
-                    (xy[:, 0] >= 0) & (xy[:, 0] < gray.shape[1]) &
-                    (xy[:, 1] >= 0) & (xy[:, 1] < gray.shape[0]))
+            good = (
+                (status.ravel() == 1)
+                & (back_status.ravel() == 1)
+                & np.isfinite(errors)
+                & (errors <= self.fb_threshold)
+                & (xy[:, 0] >= 0)
+                & (xy[:, 0] < gray.shape[1])
+                & (xy[:, 1] >= 0)
+                & (xy[:, 1] < gray.shape[0])
+            )
             t.points = new[good].reshape(-1, 1, 2)
             if good.sum() < self.min_points:
                 t.confidence = 0.0
@@ -71,8 +94,7 @@ class LKTracker:
             delta = np.median(shifts, axis=0)
             spread = float(np.median(np.linalg.norm(shifts - delta, axis=1)))
             t.fb_error = float(np.median(errors[good]))
-            quality = float(good.mean() * np.exp(-t.fb_error / self.fb_threshold) *
-                            np.exp(-spread / 3.0))
+            quality = float(good.mean() * np.exp(-t.fb_error / self.fb_threshold) * np.exp(-spread / 3.0))
             t.confidence *= quality  # cumulative drift since last detector refresh
             diagonal = max(1.0, float(np.linalg.norm(t.box[2:] - t.box[:2])))
             t.displacement = float(np.linalg.norm(delta) / diagonal)
@@ -83,7 +105,8 @@ class LKTracker:
                 t.confidence = 0.0
         self.previous = gray.copy()
 
-    def update(self, gray, detections):
+    def update(self, gray: Array, detections: Array) -> None:
+        """Fuse the current detector observations into track state."""
         matched_tracks, matched_detections = set(), set()
         if self.tracks and len(detections):
             costs = np.ones((len(self.tracks), len(detections))) * 1e6
@@ -93,7 +116,8 @@ class LKTracker:
                     if t.cls == int(d[5]) and overlap >= self.match_iou:
                         costs[i, j] = 1 - overlap
             rows, cols = linear_sum_assignment(costs)
-            for i, j in zip(rows, cols):
+            for row_index, column_index in zip(rows, cols):
+                i, j = int(row_index), int(column_index)
                 if costs[i, j] >= 1e6:
                     continue
                 t, d = self.tracks[i], detections[j]
@@ -112,14 +136,11 @@ class LKTracker:
         for t in self.tracks:
             if t.missed:
                 continue
-            mask = np.zeros_like(gray)
-            x1, y1, x2, y2 = t.box.astype(int)
-            mask[y1:y2, x1:x2] = 255
-            points = cv2.goodFeaturesToTrack(gray, self.max_points, 0.01, 5, mask=mask)
-            t.points = points if points is not None else np.empty((0, 1, 2), np.float32)
+            t.points = select_roi_features(gray, t.box, self.max_points)
             t.confidence = 1.0 if len(t.points) >= self.min_points else 0.0
             t.displacement, t.fb_error = 0.0, None
         self.previous = gray.copy()
 
-    def visible(self):
+    def visible(self) -> list[Track]:
+        """Return tracks eligible for publication on the current frame."""
         return [t for t in self.tracks if t.missed == 0]

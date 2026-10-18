@@ -2,6 +2,7 @@
 
 Evaluation tests require .venv-eval, or set EVAL_PYTHON to a compatible Python.
 """
+
 import json
 import os
 from pathlib import Path
@@ -34,7 +35,7 @@ def sequence(tmp_path):
 
 
 def detection(x=20, y=20, cls=0):
-    return np.array([[x, y, x + 20, y + 20, .9, cls]], dtype=float)
+    return np.array([[x, y, x + 20, y + 20, 0.9, cls]], dtype=float)
 
 
 def test_dataset_order_metadata_and_no_gt_requirement(sequence):
@@ -76,7 +77,7 @@ def test_kalman_constant_velocity_and_coasting():
         assert len(tracks) == 1 and tracks[0].id == 1
     for frame in range(12, 17):
         tracks = tracker.step(None)
-        np.testing.assert_allclose(tracks[0].box, detection(20 + frame * 2, 20 + frame)[0, :4], atol=.15)
+        np.testing.assert_allclose(tracks[0].box, detection(20 + frame * 2, 20 + frame)[0, :4], atol=0.15)
     assert tracker.step(detection(54, 37))[0].id == 1
     assert tracker.tracks[0].filter.x.shape == (8,)
 
@@ -84,7 +85,7 @@ def test_kalman_constant_velocity_and_coasting():
 def test_kalman_ratio_velocity_and_covariance():
     kalman = KalmanBox([0, 0, 20, 20])
     for step in range(20):
-        ratio = 1 + step * .03
+        ratio = 1 + step * 0.03
         width, height = np.sqrt(400 * ratio), np.sqrt(400 / ratio)
         box = np.array([-width / 2, -height / 2, width / 2, height / 2]) + 20
         kalman.predict()
@@ -123,7 +124,7 @@ def test_strict_fixed_schedule(interval):
 
 
 def eval_python():
-    path = Path(os.environ.get("EVAL_PYTHON", ".venv-eval/bin/python")).absolute()
+    path = Path(os.environ.get("EVAL_PYTHON", ".venv-eval/bin/python" if Path(".venv-eval/bin/python").is_file() else sys.executable)).absolute()
     assert path.is_file(), "Install requirements-eval.txt in .venv-eval (see README)"
     return str(path)
 
@@ -131,19 +132,41 @@ def eval_python():
 def make_run(tmp_path, sequence, switched=False, empty=False):
     run = tmp_path / ("empty" if empty else "switched" if switched else "perfect")
     run.mkdir()
-    (run / "summary.json").write_text(json.dumps({
-        "status": "complete", "frames": 16, "throughput_fps": 123.4,
-        "metadata": {"source": str(sequence), "classes": [0]}, "HOTA": None,
-    }))
+    (run / "summary.json").write_text(
+        json.dumps(
+            {
+                "status": "complete",
+                "frames": 16,
+                "throughput_fps": 123.4,
+                "metadata": {"source": str(sequence), "classes": [0]},
+                "HOTA": None,
+            }
+        )
+    )
     (run / "frames.jsonl").write_text("".join(json.dumps({"frame": i}) + "\n" for i in range(1, 17)))
-    (run / "tracks.txt").write_text("" if empty else "".join(
-        f"{i},{2 if switched and i > 8 else 1},21,21,20,20,.9,-1,-1,-1\n" for i in range(1, 17)))
+    (run / "tracks.txt").write_text(
+        ""
+        if empty
+        else "".join(f"{i},{2 if switched and i > 8 else 1},21,21,20,20,.9,-1,-1,-1\n" for i in range(1, 17))
+    )
     return run
 
 
 def evaluate(sequence, run, check=True):
-    return subprocess.run([eval_python(), "-m", "scripts.evaluate_tracking", "--sequence", str(sequence),
-                           "--run-dir", str(run)], capture_output=True, text=True, check=check)
+    return subprocess.run(
+        [
+            eval_python(),
+            "-m",
+            "scripts.evaluate_tracking",
+            "--sequence",
+            str(sequence),
+            "--run-dir",
+            str(run),
+        ],
+        capture_output=True,
+        text=True,
+        check=check,
+    )
 
 
 @pytest.mark.parametrize("switched,empty", [(False, False), (True, False), (False, True)])
@@ -193,18 +216,42 @@ def test_bad_prediction_duplicate_id(tmp_path):
 def test_full_ablation_cli(sequence, tmp_path):
     import onnx
     from onnx import helper, numpy_helper, TensorProto
+
     output = np.zeros((1, 84, 1), np.float32)
-    output[0, :5, 0] = [30, 30, 20, 20, .9]
+    output[0, :5, 0] = [30, 30, 20, 20, 0.9]
     node = helper.make_node("Constant", [], ["output"], value=numpy_helper.from_array(output))
-    graph = helper.make_graph([node], "fixture", [helper.make_tensor_value_info("images", TensorProto.FLOAT, [1, 3, 64, 64])],
-                              [helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 84, 1])])
+    graph = helper.make_graph(
+        [node],
+        "fixture",
+        [helper.make_tensor_value_info("images", TensorProto.FLOAT, [1, 3, 64, 64])],
+        [helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 84, 1])],
+    )
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)], ir_version=9)
     model_path = tmp_path / "fixture.onnx"
     onnx.save(model, model_path)
     destination = tmp_path / "sweep"
-    subprocess.run([sys.executable, "-m", "scripts.ablation_fixed_interval", "--sequence", str(sequence),
-                    "--model", str(model_path), "--output", str(destination), "--repeats", "1", "--warmup", "1",
-                    "--eval-python", eval_python()], check=True, capture_output=True, text=True)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.ablation_fixed_interval",
+            "--sequence",
+            str(sequence),
+            "--model",
+            str(model_path),
+            "--output",
+            str(destination),
+            "--repeats",
+            "1",
+            "--warmup",
+            "1",
+            "--eval-python",
+            eval_python(),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     curve = json.loads((destination / "tradeoff.json").read_text())
     assert [row["K"] for row in curve] == [1, 2, 5, 10, 15]
     for row in curve:

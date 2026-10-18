@@ -1,4 +1,5 @@
 """Show run-level measurements; do not average reciprocal frame latencies."""
+
 import argparse
 import json
 from pathlib import Path
@@ -15,6 +16,13 @@ for name in a.runs:
     groups.setdefault(row["metadata"]["mode"], []).append(row)
 for mode, rows in groups.items():
     print(mode, "runs=", len(rows))
-    for metric in ("throughput_fps", "process_cpu_percent_mean", "sampled_peak_rss_mib", "detection_fraction"):
+    for metric in (
+        "throughput_fps",
+        "process_cpu_percent_mean",
+        "sampled_peak_rss_mib",
+        "detection_fraction",
+    ):
         values = [r[metric] for r in rows]
-        print(f"  {metric}: mean={np.mean(values):.3f}, SD={np.std(values, ddof=1) if len(values)>1 else 0:.3f}")
+        print(
+            f"  {metric}: mean={np.mean(values):.3f}, SD={np.std(values, ddof=1) if len(values) > 1 else 0:.3f}"
+        )
