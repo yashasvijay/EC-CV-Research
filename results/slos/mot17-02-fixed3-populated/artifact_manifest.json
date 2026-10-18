@@ -1,0 +1,55 @@
+{
+  "scope": "Original populated measurement predates audit cooldown; raw artifacts preserved",
+  "recorded_source_commit": "751472f082c2e7417684526f94918d6754fb3636",
+  "source_commit_mismatches": [],
+  "files": {
+    "DESIGN.at-run.md": {
+      "sha256": "5b4414c5dccdcc9a452d3846a7a5fc2c587f154b4ffc5017e51f5739da286b8b",
+      "bytes": 12483
+    },
+    "DESIGN.v3-at-verification.md": {
+      "sha256": "1b3f4e332ece038151a819972c4a782cd4a3afdb6a4d4749a1c599962a7c151f",
+      "bytes": 12906
+    },
+    "preflight.json": {
+      "sha256": "b420d1970ff202411075a90a706a55b0f1867aad17b2f0d5efbca0bc6378198b",
+      "bytes": 187
+    },
+    "runtime/deadline_tracks.txt": {
+      "sha256": "6d8857242d78abb0dcaaaf304afd5819a67e3762b617b9fbc0b2e9707cd1a098",
+      "bytes": 530224
+    },
+    "runtime/events.jsonl": {
+      "sha256": "f057798caee0fd99237fcfd6f5fa74700d162c8dfe1421fa5d15215265603031",
+      "bytes": 54319
+    },
+    "runtime/frames.jsonl": {
+      "sha256": "f7bb8f6a3ca5de245df4f2a8e3d8202bf790089b7b7156396c5eb678ab0b4d20",
+      "bytes": 577076
+    },
+    "runtime/summary.json": {
+      "sha256": "d0a31aee032e53d9d7a82f1e95116e2308c9377febfe6584baae73b6eaab1666",
+      "bytes": 6671
+    },
+    "runtime/tracks.txt": {
+      "sha256": "c95d09c912217b724ae041484cb2a03902edb9cbfc34e7a1ac4bb8af441cac37",
+      "bytes": 532332
+    },
+    "slo_report.json": {
+      "sha256": "7423a40935d931657c454e040187f74f7baf637d42f9ee9ebada6e4e30e07e8e",
+      "bytes": 2823
+    },
+    "slo_report.md": {
+      "sha256": "2f2c5fff7cc31b7617635a04a0d183d5164ad8dce91d1aa0028924ebc2ff4758",
+      "bytes": 715
+    },
+    "verification-v3/slo_report.json": {
+      "sha256": "cdc0138507d02ad10ef0d06484dce5b0c1e1620e44d22c8995367e34dfebebcb",
+      "bytes": 2998
+    },
+    "verification-v3/slo_report.md": {
+      "sha256": "10aef2b3d90b85225e483c5e8ef413756bd6090f2a2f76b07c9aa4713825f20e",
+      "bytes": 724
+    }
+  }
+}

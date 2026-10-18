@@ -101,6 +101,7 @@ class AsyncTrackerRuntime:
         self.last_fused_source_ns: int | None = None
         self.last_fused_capture_ns: int | None = None
         self.last_requested = self.last_admitted = 0
+        self.last_bootstrap_frame: int | None = None
         self.request_id = 0
         self.shape: tuple[int, ...] | None = None
         self.counts: Counter[str] = Counter()
@@ -188,6 +189,7 @@ class AsyncTrackerRuntime:
         return reason
 
     def _fuse(self, result: DetectionResult, current: _Frame, deadline: int) -> str:
+        """Commit one background run; useful means at least one correction is accepted."""
         if result.epoch != self.config.epoch:
             return self._reject_result(result, "epoch")
         if result.source_frame <= self.last_fused_frame:
@@ -300,7 +302,7 @@ class AsyncTrackerRuntime:
             self.last_fused_source_ns = result.source_time_ns
             self.last_fused_capture_ns = result.source_capture_ns
             self.counts["fused"] += 1
-            self.counts["fused_with_tracks"] += int(accepted > 0)
+            self.counts["useful_fusion_runs"] += int(accepted > 0)
             self._event(EventKind.FUSED, result.source_frame, result.source_time_ns)
             return "fused"
         finally:
@@ -309,6 +311,7 @@ class AsyncTrackerRuntime:
     def _bootstrap(self, frame: np.ndarray, current: _Frame) -> bool:
         """Initialize supported live tracks synchronously; caller includes all cost in latency."""
         self.counts["bootstrap_calls"] += 1
+        self.last_bootstrap_frame = current.frame_idx
         detections = self.worker.detect_sync(_owned(frame))
         self.tracker.update(current.gray, detections)
         self.tracker.tracks = [t for t in self.tracker.tracks if len(t.points) >= self.config.min_points]
@@ -422,7 +425,7 @@ class AsyncTrackerRuntime:
             self.counts["history_capacity_misses"] += 1
         fusion = "none"
         result_age = None
-        useful_before = self.counts["fused_with_tracks"]
+        useful_before = self.counts["useful_fusion_runs"]
         before_fusion = self.clock()
         try:
             result = self.results.get_nowait()
@@ -441,7 +444,16 @@ class AsyncTrackerRuntime:
             self.fusion_estimate_ms = max(
                 self.config.fusion_headroom_ms, float(np.percentile(self.fusion_costs, 95))
             )
-        bootstrap_attempted = self.config.synchronous_bootstrap and not self.tracker.visible()
+        empty_scene = not self.tracker.visible()
+        cooldown_remaining = (
+            max(0, self.config.bootstrap_min_interval_frames - (index - self.last_bootstrap_frame))
+            if self.last_bootstrap_frame is not None
+            else 0
+        )
+        bootstrap_suppressed = self.config.synchronous_bootstrap and empty_scene and cooldown_remaining > 0
+        if bootstrap_suppressed:
+            self.counts["bootstrap_cooldown_frames"] += 1
+        bootstrap_attempted = self.config.synchronous_bootstrap and empty_scene and cooldown_remaining == 0
         bootstrap_start = self.clock()
         if bootstrap_attempted:
             self._bootstrap(frame, current)
@@ -539,8 +551,10 @@ class AsyncTrackerRuntime:
             if capture_time_ns is not None
             else "host_receipt",
             "bootstrap_attempted": bootstrap_attempted,
+            "bootstrap_suppressed": bootstrap_suppressed,
+            "bootstrap_cooldown_remaining_frames": cooldown_remaining,
             "bootstrap_ms": bootstrap_ms,
-            "accepted_detection_update": self.counts["fused_with_tracks"] > useful_before,
+            "accepted_detection_update": self.counts["useful_fusion_runs"] > useful_before,
             "flow_ms": (after_flow - before_flow) / 1e6,
             "fusion_ms": (after_fusion - before_fusion) / 1e6,
             "scheduler_admission_ms": (after_schedule - before_schedule) / 1e6,
@@ -568,6 +582,7 @@ class AsyncTrackerRuntime:
             "cpu_sample_updated": sample_updated,
             **self.resource,
         }
+        self.counts["frames_with_tracks"] += int(bool(output_tracks))
         self.counts["frames"] += 1
         self.counts["deadline_misses"] += int(published > deadline)
         if len(self.rows) == self.rows.maxlen:
@@ -716,8 +731,13 @@ class AsyncTrackerRuntime:
             "sampled_peak_rss_mib": self.sampled_peak_rss or None,
             "counts": dict(self.counts),
             "worker_counts": worker["counts"],
-            "fused_detection_ratio": self.counts["fused_with_tracks"] / worker["counts"].get("completed", 1)
+            "useful_fusion_ratio": self.counts["useful_fusion_runs"] / worker["counts"].get("completed", 1)
             if worker["counts"].get("completed", 0)
+            else 0.0,
+            "useful_fusion_ratio_definition": "background runs with >=1 accepted correction / completed background detector runs; excludes bootstrap",
+            "bootstrap_attempt_fraction": self.counts["bootstrap_calls"] / frames if frames else 0.0,
+            "track_frame_fraction": sum(r["tracks"] > 0 for r in rows) / source_frames
+            if source_frames
             else 0.0,
             "effective_replay_budget_ms": self.config.effective_replay_budget_ms,
             "detector_service_ms": _stats(worker["service_ms"]),

@@ -34,7 +34,7 @@ def export_data(count=600, latency=5.0):
         "main_error": None,
         "frames": count,
         "source_frames": count,
-        "counts": {"fused_with_tracks": min(3, count)},
+        "counts": {"useful_fusion_runs": min(3, count)},
         "worker_counts": {"completed": 30},
         "wall_seconds": count / 30,
         "config": {"frame_rate": 30.0, "deadline_ms": 33.0},
@@ -167,22 +167,22 @@ def test_busy_preflight_defers_without_inference(tmp_path, monkeypatch):
 
 def test_empty_output_and_bootstrap_only_cannot_pass(contract):
     summary, rows = export_data()
-    summary["counts"] = {"bootstrap_successes": 1, "fused_with_tracks": 0}
+    summary["counts"] = {"bootstrap_successes": 1, "useful_fusion_runs": 0}
     for row in rows:
         row["accepted_detection_update"] = False
     result = verifier.assess(summary, rows, contract)
-    assert result["checks"]["active_tracks"]["status"] == "PASS"
-    assert result["checks"]["fused_detection_ratio"]["status"] == "FAIL"
+    assert result["checks"]["track_frame_fraction"]["status"] == "PASS"
+    assert result["checks"]["useful_fusion_ratio"]["status"] == "FAIL"
     for row in rows:
         row["tracks"] = 0
     result = verifier.assess(summary, rows, contract)
     assert result["status"] == "FAIL"
-    assert result["checks"]["active_tracks"]["status"] == "FAIL"
+    assert result["checks"]["track_frame_fraction"]["status"] == "FAIL"
 
 
 def test_fusion_counter_cannot_exceed_accepted_frame_ledger(contract):
     summary, rows = export_data()
-    summary["counts"]["fused_with_tracks"] = 4
+    summary["counts"]["useful_fusion_runs"] = 4
     assert verifier.assess(summary, rows, contract)["status"] == "FAIL"
 
 
@@ -190,7 +190,26 @@ def test_invalid_fusion_ratio_contract_is_rejected(tmp_path):
     original = Path("docs/DESIGN.md").read_text()
     path = tmp_path / "design.md"
     path.write_text(
-        original.replace('"minimum_fused_detection_ratio": 0.1', '"minimum_fused_detection_ratio": 1.1')
+        original.replace('"minimum_useful_fusion_ratio": 0.1', '"minimum_useful_fusion_ratio": 1.1')
     )
     with pytest.raises(ValueError, match="Fusion ratio"):
         verifier.load_contract(path)
+
+
+@pytest.mark.parametrize("coverage,passed", [(0.95, True), (0.9483333333333334, False), (1 / 600, False)])
+def test_track_frame_fraction_requires_ninety_five_percent(contract, coverage, passed):
+    summary, rows = export_data()
+    populated = round(coverage * 600)
+    for row in rows[populated:]:
+        row["tracks"] = 0
+    result = verifier.assess(summary, rows, contract)
+    assert result["checks"]["track_frame_fraction"]["measured"] == pytest.approx(populated / 600)
+    assert (result["checks"]["track_frame_fraction"]["status"] == "PASS") is passed
+
+
+def test_legacy_run_counter_has_same_useful_fusion_semantics(contract):
+    summary, rows = export_data()
+    summary["counts"]["fused_with_tracks"] = summary["counts"].pop("useful_fusion_runs")
+    report = verifier.assess(summary, rows, contract)
+    assert report["checks"]["useful_fusion_ratio"]["measured"] == 0.1
+    assert report["status"] == "PASS"

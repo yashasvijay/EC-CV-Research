@@ -2,28 +2,30 @@
 
 Updated 2026-10-18. The authoritative measurements are the immutable saved run and its frame ledger; headline numbers must retain the workload and qualification below.
 
-## Async timing result
+## Populated async result
 
-Run: `results/slos/mot17-02-fixed3/`, MOT17-02-FRCNN frames 1–600, 1920×1080, 30 Hz paced replay, FixedKPolicy(3), one OpenCV/ORT thread, ten detector warmups, CPUExecutionProvider, Apple Silicon/macOS. Package versions recorded for this run: NumPy 2.5.4, OpenCV headless 4.14.0.94, ONNX Runtime 1.31.0, psutil 7.2.2. These differ from earlier synchronous profiling environments.
+The authoritative run is `results/slos/mot17-02-fixed3-populated/`: MOT17-02-FRCNN frames 1–600, 1920×1080, 30 Hz paced replay, FixedKPolicy(3), one configured OpenCV/ORT thread and ten detector warmups. All 600 frames published tracks. The original report and raw files are committed in full; `DESIGN.at-run.md` preserves its exact v2 specification, and `verification-v3/` rechecks the unchanged raw ledger against the stronger current contract.
 
-| SLI | Exact measured value | Display | Contract |
-|---|---:|---:|---|
-| Throughput, source-capped | 30.0 FPS | 30.0 FPS | ≥30 FPS |
-| Capture-to-output p95 | 5.5648979 ms | 5.56 ms | <33 ms |
-| Capture-to-output p99 | 5.60960342 ms | 5.61 ms | <33 ms |
-| Deadline-miss fraction | 0.0016666667 | 0.17% | <0.01 (1%) |
+| SLI | Exact measurement | Display |
+|---|---:|---:|
+| Source-capped throughput | 30.0 FPS | 30.0 FPS |
+| Capture-to-output p95 | 26.206049999999998 ms | 26.21 ms |
+| Capture-to-output p99 | 29.741468329999996 ms | 29.74 ms |
+| Deadline misses | 4/600 = 0.0066666667 | 0.67% |
+| Track-frame fraction | 600/600 | 100% |
+| Useful fusion ratio | 125/177 = 0.7062146893 | 70.6% |
 
-All timing/integrity gates passed. The runtime published a complete 600-frame ledger, but **every frame contained zero tracks**. Both `tracks.txt` and `deadline_tracks.txt` are empty. Detector freshness is null. This is a valid frame-publication timing measurement and an unsuccessful demonstration of useful tracking. It must not be marketed as tracking-fidelity validation or a 30 FPS populated-tracker benchmark.
+Useful fusion counts background runs with ≥1 accepted correction, not accepted boxes. Of 177 completed background runs, 125 were useful; synchronous bootstrap is excluded. First-track latency was 97.038333 ms and is included in frame/deadline measurements. CPU averaged 143.6575% of one logical core and sampled peak RSS was 341.59375 MiB. Detector mean service was 86.5707 ms. Raw throughput was 30.0217 FPS and was capped at source cadence by the verifier.
 
-The worker completed 123 detections and published 122 proposals. All 122 were rejected: target lag 88, replay budget 28, deadline headroom five, commit budget one. Four candidate births lacked support; these worker counts do not independently establish a root cause for all failed fusions. There were 200 scheduled/admitted requests and 77 superseded pending requests. The immediate follow-up is to diagnose replay/commit acceptance and bootstrap, then repeat latency and TrackEval with populated tracks. Do not silently relax stale-data or deadline safeguards to obtain a favorable number.
+The preflight passed, but thermal conditions were uncontrolled. This is one file-replay run, not a physical-camera, repeated-run or power result. HOTA/MOTA/IDF1/IDSW are unevaluated. This measurement predates the newly added bootstrap cooldown and does not measure a speedup from that change.
 
-Detector mean service time was 82.82 ms and mean queue wait 48.52 ms. Process CPU averaged 110.67%, sampled peak RSS 328.94 MiB. The verifier caps throughput at nominal source cadence; raw runtime throughput was 30.0419 FPS. Input is paced file replay, not a physical camera. Decode/backlog are included relative to nominal release; exposure, capture transport and rendering are excluded. There is one measured run, no thermal control, no power measurement and no evaluated tracking accuracy.
+The prior `mot17-02-fixed3` run had no tracks and its 5.61 ms p99 is not current tracking evidence. It remains immutable and fails current gates. The populated result resolves the stale bootstrap/timing disclaimer; accuracy and generalization remain distinct measurement gaps.
 
 ## Feature-selection result
 
 The original 50-frame cProfile/timer attribution measured 114.6196 ms/frame in native feature selection; the ROI profile measured 1.3052 ms/frame. The relative reduction from the unrounded measurements is about 98.86%. The paired, mask/offset-inclusive comparison measured 147.7969→2.0976 ms/frame, a 98.58% reduction (~98.5%) across three repeats with substantial variation. Do not attach the paired percentage to the native-call timing boundary as an exact calculation. [Full evidence](../reports/roi-features/results.md).
 
-The ROI synchronous profile measured 8.06 FPS and 143.44 ms pipeline p99 while tracking active objects. It cannot be causally compared to the 5.61 ms async p99 as an end-to-end tracking speedup: the latter had no live tracks.
+The ROI synchronous profile measured 8.06 FPS and 143.44 ms pipeline p99. The populated async run has a different capture-to-output timing boundary, package versions and concurrency; report both workloads rather than claiming a controlled end-to-end speedup.
 
 ## Historical grid and publication provenance
 
@@ -35,6 +37,6 @@ The completed 48-configuration grid and Pareto figure use the earlier synchronou
 
 Use the quick start in [README](../README.md). For a new run choose a new output directory. `python -m scripts.verify_slos --run-dir results/slos/mot17-02-fixed3/runtime --output NEW_DIRECTORY` verifies saved timing only. Full causal/deadline TrackEval uses `scripts.run_async_evaluation` with a complete MOT17 sequence; the four-policy sweep uses `scripts.ablation_policies`. See [engineering commands](engineering.md).
 
-## Contract-v2 invalidation and correction
+## Contract-v3 enforcement
 
-The current verifier now requires live track output and useful background fusion ratio ≥10%. The historical empty-output run fails both gates. Default synchronous bootstrap and batched LK replay/commit have been implemented and pass regression tests; no replacement hardware result is yet claimed. Bootstrap latency is included, not removed as warmup. See [current runtime behavior](async-runtime.md).
+Current acceptance requires `track_frame_fraction >= 0.95` and `useful_fusion_ratio >= 0.1`, recomputed from full source-frame telemetry. The historical empty run fails; the populated run passes. Missing frames enter the coverage denominator and also fail integrity. A positive track count on one frame cannot qualify a sequence. Neither useful fusion nor occupancy measures ground-truth fidelity.

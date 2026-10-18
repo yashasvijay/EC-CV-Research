@@ -1,6 +1,6 @@
 # Correction of Errors: detector gating and feature-selection cost
 
-Status: feature-selection remediation measured; one empty-output async run passed timing SLOs; useful-tracking and post-change fidelity qualification remain open. Written 2026-10-18. This is a research performance incident, not a documented customer outage. Individual fault is not assigned.
+Status: feature-selection remediation measured; populated async timing verified after bootstrap/replay correction; accuracy qualification remains separate. Written 2026-10-18. This is a research performance incident, not a documented customer outage. Individual fault is not assigned.
 
 ## Summary
 
@@ -62,7 +62,7 @@ Owners are roles awaiting individual assignment; due points are review milestone
 |---|---|---|---|
 | Crop and locally mask reseeding | Tracking engineer | Before next ablation | Implemented; bounds tests and paired latency evidence saved |
 | Preserve exclusive stage profiling | Systems engineer | Every hot-path change | Implemented profiler; retain measured baseline and provenance |
-| Add run-level SLO gate | Evaluation lead | Before latency qualification | Timing-only PASS recorded (30.0 FPS / 5.61 ms p99 / 0.17% misses); zero live tracks prevents tracking qualification |
+| Add run-level SLO gate | Evaluation lead | Before latency qualification | Populated replay verified (30.0 FPS / 29.74 ms p99 / 0.67% misses); contract v3 requires ≥95% live-frame coverage |
 | Analyze trigger reason frequencies | Evaluation lead | Before gate retuning | Open; export reason counts with source sequence and settings |
 | Evaluate causal and deadline-valid HOTA/MOTA | Evaluation lead | Before release claim | Harness implemented; real ROI async sweep pending |
 | Repeat full-sequence hardware runs | Systems engineer | Before release claim | Open; ≥5 repetitions/sequence and preserve all failures |
@@ -77,3 +77,7 @@ This document follows the COE emphasis on impact, evidence, contributing mechani
 ## Follow-up: empty-output async timing result
 
 The [saved FixedKPolicy(3) run](verified-performance.md) completed 123 inferences but accepted no published correction. Rejection reasons are recorded; target lag and replay budget dominate this run. Its light publication loop met timing targets because no live tracks incurred propagation work. This is a separate fusion/bootstrap finding, not a regression in measured ROI extraction cost. Keep the COE open until a populated-tracker benchmark and full-sequence fidelity checks are reviewed.
+
+## Populated-run resolution
+
+The [populated artifact](../results/slos/mot17-02-fixed3-populated/slo_report.json) supersedes the empty-output timing evidence: 600/600 frames contain tracks, 125/177 background runs accept corrections, p95 is 26.21 ms and p99 is 29.74 ms. The bootstrap/replay defect is corrected for this measured workload. Audit follow-up adds a 15-frame synchronous retry cooldown and ≥95% coverage gate to prevent empty-scene blocking and weak single-frame acceptance. Full accuracy and repeated deployment qualification remain separate evidence requirements.

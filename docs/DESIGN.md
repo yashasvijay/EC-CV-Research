@@ -1,12 +1,12 @@
 # Streaming tracking system specification
 
-Status: implemented runtime; one empty-output run passed timing SLOs; useful-tracking qualification pending. Revision: 2, 2026-10-18.
+Status: populated 600-frame replay verified; current contract requires sustained coverage and useful background fusion. Revision: 3, 2026-10-18.
 
 ## Scope and service boundary
 
 The runtime accepts monotonically numbered BGR frames, propagates sparse Lucas–Kanade (LK) features, consults a scheduler, and publishes immutable tracks. YOLO11n ONNX inference and historical correction preparation run in one background worker. The main thread owns live track state. The deployment target is Apple Silicon ARM64, 1920×1080, 30 source frames/s, COCO pedestrian detections, one configured OpenCV/ORT thread per component. Python thread count does not imply a single process-wide CPU core.
 
-A saved 600-frame MOT17-02 FixedKPolicy(3) paced replay passed the timing contract: **30.0 FPS, 5.56 ms p95, 5.61 ms p99, 0.17% deadline misses**. However, all 600 outputs had zero tracks, all published correction proposals were rejected, and detector freshness was null. This demonstrates timely frame publication, not useful real-time tracking. The ROI synchronous profile measured 8.06 FPS with active tracking; the two workloads cannot establish a tracking speedup. [Run evidence and limitations](verified-performance.md). The at-run specification is preserved beside the original SLO report; the contract block below is unchanged.
+The populated MOT17-02 FixedKPolicy(3) run maintained tracks on 600/600 frames at **30.0 FPS, 26.21 ms p95, 29.74 ms p99 and 0.67% deadline misses**. Its useful fusion ratio was **70.6% (125/177 background runs)**. [Original report](../results/slos/mot17-02-fixed3-populated/slo_report.json) and [current-contract recheck](../results/slos/mot17-02-fixed3-populated/verification-v3/slo_report.json) retain the exact values and raw-ledger provenance. This is populated paced replay, not HOTA/MOTA or physical-camera validation. The earlier empty-output 5.61 ms run is historical and fails current tracking gates. [Measurement scope](verified-performance.md).
 
 ## SLO contract
 
@@ -15,7 +15,7 @@ The following JSON block is the sole executable threshold definition. `scripts/v
 <!-- SLO_CONTRACT_START -->
 ```json
 {
-  "version": 2,
+  "version": 3,
   "camera_fps": 30.0,
   "throughput_min_fps": 30.0,
   "p95_e2e_max_ms": 33.0,
@@ -23,7 +23,8 @@ The following JSON block is the sole executable threshold definition. `scripts/v
   "deadline_ms": 33.0,
   "deadline_miss_max_fraction": 0.01,
   "minimum_frames": 600,
-  "minimum_fused_detection_ratio": 0.1
+  "minimum_useful_fusion_ratio": 0.1,
+  "minimum_track_frame_fraction": 0.95
 }
 ```
 <!-- SLO_CONTRACT_END -->
@@ -34,6 +35,8 @@ The following JSON block is the sole executable threshold definition. `scripts/v
 | End-to-end p95 | <33 ms | Linear NumPy percentile of nominal capture-to-publication latency |
 | End-to-end p99 | <33 ms | Same capture-to-publication population, including late frames |
 | Deadline misses | <1% | Missing source frames plus publications with latency **≥33 ms**, divided by all expected frames |
+| Track-frame fraction | ≥95% | Frames publishing ≥1 live track / all expected source frames |
+| Useful fusion ratio | ≥10% | Completed background runs accepting ≥1 correction / completed background runs; excludes bootstrap |
 | Measurement integrity | PASS | Complete contiguous ledger from frame 1, ≥600 frames, successful worker shutdown, matching 30 FPS / 33 ms runtime configuration and consistent timestamps |
 
 Equality fails each strict upper bound: 33 ms is late and 1% misses fails. A 30 FPS cadence is 33.333… ms; the 33 ms budget intentionally leaves a small margin. Runtime `deadline_missed` currently uses `>`; the verifier recomputes `>=` from timestamps to enforce this stricter contract. It never substitutes frame-work latency for capture-to-output latency.
@@ -87,12 +90,12 @@ The command checks idle conditions before model execution, runs the real runtime
 
 ## Current verification record
 
-The timing-only result is recorded in [the original report](../results/slos/mot17-02-fixed3/slo_report.json). Its 600 contiguous frames and zero populated outputs satisfy measurement integrity, while useful tracking remains unqualified. The original version-1 verifier reported latency-only PASS; version 2 additionally requires live tracks and useful background fusion. Neither version substitutes for accuracy evaluation. Diagnose replay/commit rejection and repeat with live tracks before a tracking-performance claim. Current test/lint outcomes are in [publication validation](../reports/publication-validation/validation.json).
+The populated result is recorded with raw logs in `results/slos/mot17-02-fixed3-populated/`. It passes current timing, ≥95% populated-frame and useful-fusion-run checks. The prior empty-output report remains archived and fails those tracking gates. SLO acceptance does not evaluate identity or box accuracy. The at-run version-2 design is preserved separately from this revision.
 
-## Tracking-validity gate (contract version 2)
+## Tracking-validity gate (contract version 3)
 
-Latency-only PASS is no longer sufficient. A run must publish tracks on at least one frame and successfully apply useful **background** detection corrections on at least 10% of completed background detector calls. The ratio is `fused_with_tracks / worker_counts.completed`; zero completed calls gives ratio zero. Synchronous bootstrap successes and empty detector results do not count as useful background fusion. This is a configurable engineering floor, not an accuracy guarantee or a validated optimal threshold. Missing counters or inconsistent per-frame acceptance flags fail validation. The historical 30 FPS / 5.61 ms p99 run remains immutable and fails this version's tracking-validity gates.
+A run must publish live tracks on at least 95% of expected source frames and apply at least one correction in at least 10% of completed background detector runs. `useful_fusion_ratio = useful_fusion_runs / worker_counts.completed`; a run counts once regardless of how many boxes were accepted. Zero completed runs gives ratio zero. Bootstrap, empty and rejected background results do not enter the numerator. Saved version-2 artifacts used `fused_with_tracks` for the same run-level count; the verifier accepts that alias only when it agrees with the frame ledger. These are engineering floors, not accuracy guarantees. Version 3 replaces version 2's insufficient `track_frames > 0` gate.
 
-Synchronous bootstrap is enabled by default when no live tracks remain. It uses the same detector under an inference lock, updates supported ROI tracks at the current source frame, and includes lock wait, inference and reseeding in `bootstrap_ms`, frame-work and capture-to-output latency. It may miss the deadline; bootstrap is not a hidden warmup. Source frame IDs remain one-based. `synchronous_bootstrap=False` is an explicit worker-only diagnostic mode, not the verifier default.
+Synchronous bootstrap is enabled by default when no live tracks remain, with `bootstrap_min_interval_frames=15` between attempts, including empty/failed-to-seed attempts. Between attempts the main thread keeps propagating/publishing and uses the background scheduler; it does not synchronously re-infer every frame. Cooldown suppression and remaining-frame counters are exposed. A value of one explicitly restores per-frame retries for diagnostic tests. It uses the same detector under an inference lock, updates supported ROI tracks at the current source frame, and includes lock wait, inference and reseeding in `bootstrap_ms`, frame-work and capture-to-output latency. It may miss the deadline; bootstrap is not a hidden warmup. Source frame IDs remain one-based. `synchronous_bootstrap=False` is an explicit worker-only diagnostic mode, not the verifier default.
 
 Main-thread propagation, worker replay and final correction alignment batch all track points into one forward/backward LK pair per source step. The Python OpenCV binding rejects prebuilt pyramid tuples, so native LK constructs shared pyramids internally once per batched direction. No redundant `buildOpticalFlowPyramid` prepass is performed. `effective_replay_budget_ms` is capped by the commit-lag window minus a pickup reserve (default 33.33 ms rather than 100 ms); this is soft admission, not a guarantee that a single native call completes within budget. Age, source-order, epoch and target-lag rejection remain enforced.

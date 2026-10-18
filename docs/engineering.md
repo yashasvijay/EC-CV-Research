@@ -43,6 +43,8 @@ This saves separate HOTA-versus-FPS and HOTA-versus-capture-p95 figures for each
 
 ## SLO verifier
 
-`python -m scripts.verify_slos --sequence data/raw/MOT17/train/MOT17-02-FRCNN --model models/yolo11n.onnx --policy fixed_k --k 3 --output results/slos/mot17-02-fixed3-repeat` performs idle preflight and writes a new run. `--run-dir results/slos/mot17-02-fixed3/runtime --output NEW_DIRECTORY` checks the saved export without inference. The saved run has zero tracks; its timing PASS is not a release qualification. Use a new output path for every invocation.
+`python -m scripts.verify_slos --sequence data/raw/MOT17/train/MOT17-02-FRCNN --model models/yolo11n.onnx --policy fixed_k --k 3 --output results/slos/mot17-02-fixed3-repeat` performs idle preflight and writes a new run. `--run-dir results/slos/mot17-02-fixed3-populated/runtime --output NEW_DIRECTORY` checks the saved export without inference. The populated run has tracks on all 600 frames and useful corrections in 125/177 background runs; its SLO pass is not an accuracy evaluation. Use a new output path for every invocation.
 
-Publication check (2026-10-18): `make test` passed **137 tests**; `make lint` passed Ruff and strict mypy across **26 source modules**. See [validation record](../reports/publication-validation/validation.json). These software checks do not qualify tracking accuracy.
+Audit check (2026-10-18): `make lint` passes Ruff and strict mypy across **27 source modules**. The [current validation record](../reports/audit-hardening/validation.json) records full-suite and targeted regression outcomes. These software checks do not qualify tracking accuracy.
+
+The current metric is `useful_fusion_ratio` (useful background runs / completed background runs). Contract v3 requires track-frame fraction ≥95%; `bootstrap_min_interval_frames=15` bounds synchronous empty-scene retries. For service-delay simulation use `scripts.sweep_detector_latency`; see [the envelope guide](detector-latency-sweep.md).

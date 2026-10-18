@@ -1,6 +1,6 @@
 # Asynchronous LK tracking runtime
 
-> Current scope (2026-10-18): One full MOT17-02 replay passed timing gates at 30.0 FPS / 5.61 ms p99 but published no live tracks. This API is implemented; useful-tracking qualification is still open. See [verified performance](verified-performance.md).
+> Current scope (2026-10-18): The populated MOT17-02 replay measured 30.0 FPS / 29.74 ms p99 with tracks on all 600 frames and useful fusion in 125/177 background runs. Accuracy and repeated-run qualification are separate. See [verified performance](verified-performance.md).
 
 `src/async_pipeline.py` now implements `AsyncTrackerRuntime`. Helper modules in `src/runtime/` separate packet contracts, bounded grayscale history, queue transport, motion replay, and `DetectionWorker`. Synchronous controls remain available for historical comparisons. The initial 48-configuration grid is complete; source hashes identify each experiment version.
 
@@ -30,7 +30,7 @@ with runtime:
 runtime.export("results/async-fixed3")
 ```
 
-This example is an API demonstration. The separate saved 30 FPS timing result published zero tracks; see [verified performance](verified-performance.md). Model initialization runs in the detector worker before readiness. For benchmark warmup, provide a factory that initializes and warms the detector before returning it. Record the model checksum, package versions, provider/thread configuration and experiment conditions in `metadata`; the runtime does not infer a checksum from an arbitrary callable.
+This example is an API demonstration. The current saved 30 FPS result is populated; the earlier empty-output result is archived. See [verified performance](verified-performance.md). Model initialization runs in the detector worker before readiness. For benchmark warmup, provide a factory that initializes and warms the detector before returning it. Record the model checksum, package versions, provider/thread configuration and experiment conditions in `metadata`; the runtime does not infer a checksum from an arbitrary callable.
 
 For a camera callback or an existing frame iterator, call `start()`, then `process_frame(frame, frame_idx=..., capture_time_ns=..., source_time_ns=...)`, and finally `close()`. `step` aliases `process_frame`; `stop` aliases `close`. Capture time must use the runtime monotonic clock. Dataset/source time may use another clock but must increase consistently within the stream; source time is used for observation aging and covariance prediction, never subtracted from a capture timestamp. Omitted capture/source timestamps use host receipt time. A source-frame gap is counted; a large gap invalidates LK support. Dimension changes and restarts require a new runtime/epoch.
 
@@ -38,7 +38,7 @@ For a camera callback or an existing frame iterator, call `start()`, then `proce
 
 ## Detection and correction ownership
 
-The main caller owns live tracks and scheduler state. The detector factory and all inference calls execute in one non-daemon `DetectionWorker`. Request and result transport uses bounded `queue.Queue` instances with nonblocking insertion/removal. One producer writes each queue. On overflow, the oldest pending payload is superseded; the in-flight inference is not cancelled. Queue-depth readings are observational snapshots, not synchronization predicates.
+The main caller owns live tracks and scheduler state. The detector factory and background calls execute in one non-daemon `DetectionWorker`; synchronous bootstrap calls use the same detector under an inference lock. Request and result transport uses bounded `queue.Queue` instances with nonblocking insertion/removal. One producer writes each queue. On overflow, the oldest pending payload is superseded; the in-flight inference is not cancelled. Queue-depth readings are observational snapshots, not synchronization predicates.
 
 Detector payloads copy the BGR frame and source-state snapshot. Grayscale history has explicit frame and byte limits; source requests and pending corrections hold counted leases. Pinned frames cannot be evicted. If all space is pinned, the runtime continues propagating/publishing the input frame and rejects detector admission that needs unavailable history. BGR requests, track snapshots, points, native scratch storage, and the current LK image copy occupy additional bounded memory beyond the grayscale-history byte cap. No zero-copy or allocation-free claim is made.
 
@@ -90,4 +90,10 @@ Synchronous bootstrap defaults to enabled at source frame 1 or after all live tr
 
 The effective preparation cap is the lesser of `replay_budget_ms` and the commit-lag time window minus a frame-pickup reserve: 33.33 ms at the default 30 Hz / two-frame commit lag. Association, seeding and historical replay enter that timer, checked before/after frame steps. Native calls remain uninterruptible and stale proposals remain rejected. Track source-age limits have not been loosened.
 
-Telemetry separates bootstrap calls/successes, accepted background-update flags, useful fusion counts and completed background inferences. The contract-v2 verifier requires nonempty tracks and useful background fusion ratio ≥0.1; synchronous bootstrap does not inflate that numerator. The preserved zero-track timing run fails those new gates. No corrected real-hardware throughput or fidelity result is yet claimed.
+Telemetry separates bootstrap calls/successes, accepted background-update flags, useful fusion counts and completed background inferences. The contract-v3 verifier requires ≥95% track-frame coverage and useful fusion ratio ≥0.1; the numerator counts background runs accepting ≥1 correction, not individual boxes. Synchronous bootstrap is excluded. The preserved zero-track timing run fails those new gates. The populated run verifies timing after bootstrap/replay correction; HOTA/MOTA are not evaluated.
+
+## Empty scenes and latency injection
+
+`bootstrap_min_interval_frames` defaults to 15 source frames and is a positive integer. Attempt time, empty results and suppressed retries are logged; the cooldown applies after successful attempts too, bounding synchronous recovery frequency. Background scheduling remains available while a synchronous retry is suppressed. `bootstrap_attempt_fraction` measures synchronous attempts per source frame, not background requests.
+
+The synthetic sweep is documented in [the latency-injection guide](detector-latency-sweep.md). `useful_fusion_ratio` is a run-level background acceptance metric; historical `fused_detection_ratio` names remain unchanged only in archived measurements.

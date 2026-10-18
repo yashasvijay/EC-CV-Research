@@ -3,11 +3,11 @@
 **Yashas Vijay**  
 *Technical report draft · updated 18 October 2026*
 
-> **Evidence status.** The asynchronous runtime is implemented. A 600-frame MOT17-02 paced replay passed run-level timing gates at 30.0 FPS, 5.56 ms p95, 5.61 ms p99 and 0.17% deadline misses. It published **zero tracks** and accepted no live correction; these are frame-publication metrics, not verified tracking performance. Post-ROI async HOTA/MOTA and populated-tracker latency qualification remain open. The earlier 48-configuration synchronous grid is complete.
+> **Evidence status.** The implemented asynchronous runtime maintained tracks on 600/600 MOT17-02 frames at 30.0 FPS, 26.21 ms capture-to-output p95 and 29.74 ms p99, with four deadline misses (0.67%). Useful fusion occurred in 125/177 completed background runs (70.6%). The complete raw artifacts are committed under `results/slos/mot17-02-fixed3-populated/` and rechecked against contract v3. This is one paced-replay result; it does not establish HOTA/MOTA, repeated-run reliability, power savings or physical-camera latency. The older empty-output result is superseded as tracking evidence.
 
 ## Abstract
 
-We study how asynchronous inference scheduling and localized feature selection affect tracking-by-detection on Apple Silicon. A single-owner tracking thread exchanges bounded requests and correction proposals with a detector/replay worker. Swappable policies schedule YOLO11n ONNX inference, while sparse Lucas–Kanade (LK) flow propagates active tracks. Profiling identified repeated full-image corner extraction as the principal synchronous cost: cropped ROI selection reduced native feature-call attribution from 114.62 to 1.31 ms/frame. A paired selector experiment measured a 98.58% reduction when mask construction and coordinate offsets were included. A subsequent FixedKPolicy(3) replay of all 600 MOT17-02 frames achieved 30.0 FPS publication throughput, 5.61 ms capture-to-output p99 and one deadline miss. However, every published frame had an empty track set: detector proposals failed replay/commit acceptance. This run establishes timing compliance for an empty-output workload, not tracking fidelity or production readiness. We report these boundaries explicitly, retain historical accuracy results separately, and define the measurements required to qualify useful asynchronous tracking.
+We study asynchronous inference scheduling and localized feature selection for tracking-by-detection on Apple Silicon. A single-owner tracking thread exchanges bounded requests and correction proposals with a detector/replay worker. Sparse Lucas–Kanade flow propagates live tracks, while four scheduler policies control YOLO11n ONNX requests. Cropped ROI selection reduced native feature-call attribution from 114.62 to 1.31 ms/frame; a separate paired selector experiment measured a 98.58% reduction including mask/offset work. After synchronous cold-start and batched replay corrections, a 600-frame FixedKPolicy(3) MOT17-02 replay maintained nonempty tracks on every frame at 30.0 FPS, 26.21 ms p95 and 29.74 ms p99, with 0.67% deadline misses. Of 177 completed background runs, 125 accepted at least one correction, giving a useful fusion ratio of 70.6%. The verifier now requires ≥95% populated frames, and empty-scene recovery has a bounded synchronous retry cadence. These run-level measurements establish populated-tracker timing for this workload, not tracking accuracy or deployment-wide reliability.
 
 **Keywords:** asynchronous vision; multi-object tracking; optical flow; bounded queues; tail latency; Apple Silicon.
 
@@ -110,20 +110,22 @@ These are earlier single-run controls, not measurements of the optimized async t
 
 The paired experiment used three repetitions of the same 50-frame/saved-box workload, alternating backend order. Repeat means were 117.159/189.146/137.086 ms versus 1.404/3.402/1.486 ms. Substantial variation limits a stable hardware-wide speedup claim. Native attribution includes profiler/timer overhead and excludes Python crop preparation; it must not be conflated with the paired boundary. The updated synchronous profile measured 8.06 FPS, 118.78 ms mean pipeline latency and 143.44 ms p99. [Full ROI evidence](roi-features/results.md).
 
-### 5.3. Async run-level SLO result
+### 5.3. Populated async run-level SLO result
 
 | SLI | Measurement | Threshold | Result |
 |---|---:|---:|---|
 | Source-capped throughput | 30.0 FPS | ≥30 FPS | PASS |
-| Capture-to-output p95 | 5.56 ms | <33 ms | PASS |
-| Capture-to-output p99 | 5.61 ms | <33 ms | PASS |
-| Deadline misses | 0.17% (1/600) | <1% | PASS |
-| Frames with live tracks | **0/600** | Tracking qualification required | Not qualified |
-| HOTA / MOTA | Unevaluated | Matched accuracy validation | Pending |
+| Capture-to-output p95 | 26.21 ms | <33 ms | PASS |
+| Capture-to-output p99 | 29.74 ms | <33 ms | PASS |
+| Deadline misses | 0.67% (4/600) | <1% | PASS |
+| Track-frame fraction | 100% (600/600) | ≥95% | PASS |
+| Useful fusion ratio | 70.6% (125/177 background runs) | ≥10% | PASS |
 
-The timing run used FixedKPolicy(3), ten detector warmups and one OpenCV/ORT thread. It completed 123 detector calls, superseded 77 pending requests and rejected all 122 published proposals. Rejections were target lag 88, replay budget 28, deadline headroom five and commit budget one. Detector freshness was null. CPU averaged 110.67% of one logical core and sampled peak RSS was 328.94 MiB. Detector service averaged 82.82 ms. The raw runtime throughput estimate was 30.0419 FPS; the verifier caps it at the 30 FPS source rate.
+The first track appeared after 97.04 ms; bootstrap latency remains in the measured population. The run used FixedKPolicy(3), ten detector warmups and one configured OpenCV/ORT thread. It completed 177 background runs, of which 125 applied at least one correction. CPU averaged 143.66% of one logical core, sampled peak RSS was 341.59 MiB, and mean detector service was 86.57 ms. Raw runtime throughput was 30.0217 FPS; the verifier caps publication throughput at source cadence.
 
-**Interpretation:** detector decoupling kept an empty-output publication loop on schedule. It did not demonstrate successful detector-to-tracker fusion or useful real-time tracking. The 5.61 ms p99 cannot be presented as a populated-tracker speedup over the synchronous 143.44 ms p99. [Original SLO report](../results/slos/mot17-02-fixed3/slo_report.json), [runtime telemetry](../results/slos/mot17-02-fixed3/runtime/summary.json).
+The ratio counts useful **runs**, not individual accepted boxes or detection recall. Its denominator includes completed background runs whose results were rejected or discarded. Bootstrap is excluded. Contract v3 recomputes track coverage and usefulness from the full ledger, supports the v2 counter alias for this saved run, and checks counter/ledger consistency.
+
+[Original report](../results/slos/mot17-02-fixed3-populated/slo_report.json), [raw runtime summary](../results/slos/mot17-02-fixed3-populated/runtime/summary.json), [v3 revalidation](../results/slos/mot17-02-fixed3-populated/verification-v3/slo_report.json). The previous empty-output 5.61 ms p99 result remains archived and is not used as populated-tracking evidence. These are single-run paced-replay timings; accuracy is not evaluated.
 
 ### 5.4. Completed historical grid frontier
 
@@ -133,13 +135,17 @@ The timing run used FixedKPolicy(3), ten detector warmups and one OpenCV/ORT thr
 
 ## 6. Limitations and next experiments
 
-The immediate blocker is successful source-time correction acceptance and track bootstrap. Diagnosis must preserve stale-data safeguards and measure useful track output; lowering rejection thresholds solely to improve the headline is not a valid optimization. After correcting the mechanism, rerun all four policies with the same covariance, queue and replay settings, and evaluate both causal and deadline-valid HOTA/MOTA/IDF1/IDSW.
+Synchronous bootstrap and batched replay resolved the zero-track cold-start failure for the populated run above. To avoid repeated main-thread blocking in empty scenes, recovery attempts are now separated by at least 15 source frames by default; intervening frames retain asynchronous admission. The populated artifact predates that cooldown change, so it is not evidence for a new audit-fix speedup.
 
-The short ROI profile and paired selector experiment have different timing boundaries. The async result used different package versions and no live tracks. Background load may change after idle checks, thermal conditions were uncontrolled, and power was not measured. Single-sequence/single-run timings do not establish production reliability or generalization across edge devices.
+A populated frame can still contain inaccurate or stale identities. Full causal/deadline-valid HOTA/MOTA/IDF1/IDSW and repeated multi-sequence policy comparisons are still required for fidelity and generalization claims. This is an actual measurement gap, rather than an unresolved bootstrap implementation claim.
+
+`scripts/sweep_detector_latency.py` evaluates a synthetic service-delay envelope at 40, 80, 160 and 320 ms. Exact textured-box detections isolate scheduling/fusion behavior; delay applies to bootstrap too. It reports useful fusion ratio, populated-frame fraction, deadline misses and fallback attempts per frame/second. Fresh processes and idle preflight isolate cases. Sleep injection does not reproduce slower hardware's CPU contention, cache, thermal or power characteristics. The four-delay envelope has not been measured as part of this publication update.
+
+The short ROI profile, paired selector experiment and populated async run use different timing boundaries. Thermal conditions remain uncontrolled and power is unmeasured. One populated replay does not establish physical-camera or deployment-wide SLO reliability.
 
 ## 7. Reproduction and validation
 
-Use Python 3.13 in a separate environment: `pip install -e '.[dev,eval]'`, then `make lint` and `make test`. The [publication validation](publication-validation/validation.json) records the current checks; older validation files retain their original test populations. Synthetic tests cover lifecycle, queue overload, stale fusion, ROI bounds, scheduler contracts and SLO boundary handling; they are not hardware or accuracy evidence.
+Use Python 3.13 in a separate environment: `pip install -e '.[dev,eval]'`, then `make lint` and `make test`. The [audit validation](audit-hardening/validation.json) records the current checks; older validation files retain their original test populations. Synthetic tests cover lifecycle, queue overload, stale fusion, ROI bounds, scheduler contracts and SLO boundary handling; they are not hardware or accuracy evidence.
 
 ```bash
 python -m scripts.verify_slos \

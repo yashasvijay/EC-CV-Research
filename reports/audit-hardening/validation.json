@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "full_suite_tests": 156,
+  "final_targeted_tests": 35,
+  "strict_mypy_source_modules": 27,
+  "lint": "passed",
+  "populated_slo_v3": "PASS",
+  "tracks_on_frames": 600,
+  "total_frames": 600,
+  "useful_fusion_runs": 125,
+  "completed_background_runs": 177,
+  "full_latency_envelope": "not run; synthetic unit/integration coverage only",
+  "original_run_inputs_preserved": true,
+  "full_suite_seconds": 73.6,
+  "full_suite_failed": 0,
+  "source_sha256": {
+    "src/async_pipeline.py": "6c7a47c2c715dcfa25db5cf680c036208eee9bd59807ddecb4292c2840dae6cc",
+    "src/runtime/packets.py": "9243410de27640e8ecb114c7c20a18eb310ce16642a12093007b31e772cd4938",
+    "scripts/verify_slos.py": "9a63cbc172636509bafae70f27a971cdc30230ff4c59d25e10dcacaf691c133a",
+    "scripts/sweep_detector_latency.py": "4709637596649644b20daa4a0d002ceb2abcc2d6bcb4a5df1b253fc653dc165c",
+    "docs/DESIGN.md": "1b3f4e332ece038151a819972c4a782cd4a3afdb6a4d4749a1c599962a7c151f"
+  }
+}

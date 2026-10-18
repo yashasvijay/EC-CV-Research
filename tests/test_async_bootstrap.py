@@ -44,15 +44,17 @@ def test_default_synchronous_bootstrap_and_background_refresh():
         assert fourth.telemetry["accepted_detection_update"] is True
         assert any(thread != owner for thread in calls)
         assert runtime.counts["bootstrap_successes"] == 1
-        assert runtime.counts["fused_with_tracks"] == 1
+        assert runtime.counts["useful_fusion_runs"] == 1
         assert len(third.tracks) == 2
-    assert runtime.summary()["fused_detection_ratio"] > 0
+    assert runtime.summary()["useful_fusion_ratio"] > 0
     assert not runtime.worker.is_alive()
 
 
 def test_rebootstrap_after_all_tracks_retire():
     runtime = AsyncTrackerRuntime(
-        lambda: lambda image: boxes(), FixedKPolicy(100), RuntimeConfig(deadline_ms=500, max_track_age_ms=10)
+        lambda: lambda image: boxes(),
+        FixedKPolicy(100),
+        RuntimeConfig(deadline_ms=500, max_track_age_ms=10, bootstrap_min_interval_frames=1),
     )
     with runtime:
         first = runtime.process_frame(scene(), source_time_ns=0)
@@ -117,3 +119,26 @@ def test_bootstrap_cost_and_deadline_miss_are_not_hidden():
         assert output.telemetry["bootstrap_ms"] == 80.0
         assert output.telemetry["frame_work_ms"] >= 80.0
         assert output.telemetry["deadline_missed"] is True
+
+
+def test_empty_scene_bootstrap_backoff_bounds_synchronous_calls():
+    calls = []
+
+    def detector(frame):
+        calls.append(1)
+        return np.empty((0, 6), np.float32)
+
+    config = RuntimeConfig(bootstrap_min_interval_frames=5)
+    with AsyncTrackerRuntime(lambda: detector, FixedKPolicy(1000), config) as runtime:
+        outputs = [runtime.process_frame(scene(), source_time_ns=i * 33_333_333) for i in range(12)]
+        assert [o.frame_idx for o in outputs if o.telemetry["bootstrap_attempted"]] == [1, 6, 11]
+        assert len(calls) == 3
+        assert all(not o.tracks for o in outputs)
+        assert runtime.counts["bootstrap_cooldown_frames"] == 9
+        assert outputs[1].telemetry["bootstrap_suppressed"] is True
+    assert runtime.summary()["bootstrap_attempt_fraction"] == pytest.approx(3 / 12)
+
+
+def test_bootstrap_interval_configuration_rejects_zero():
+    with pytest.raises(ValueError):
+        RuntimeConfig(bootstrap_min_interval_frames=0)

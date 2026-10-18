@@ -1,0 +1,95 @@
+{
+  "status": "PASS",
+  "checks": {
+    "active_tracks": {
+      "status": "PASS",
+      "measured": 600,
+      "operator": ">",
+      "threshold": 0
+    },
+    "fused_detection_ratio": {
+      "status": "PASS",
+      "measured": 0.7062146892655368,
+      "operator": ">=",
+      "threshold": 0.1
+    },
+    "measurement_integrity": {
+      "status": "PASS",
+      "issues": [],
+      "frames": 600
+    },
+    "throughput_fps": {
+      "status": "PASS",
+      "measured": 30.0,
+      "operator": ">=",
+      "threshold": 30.0
+    },
+    "p95_e2e_ms": {
+      "status": "PASS",
+      "measured": 26.206049999999998,
+      "operator": "<",
+      "threshold": 33.0
+    },
+    "p99_e2e_ms": {
+      "status": "PASS",
+      "measured": 29.741468329999996,
+      "operator": "<",
+      "threshold": 33.0
+    },
+    "deadline_miss_fraction": {
+      "status": "PASS",
+      "measured": 0.006666666666666667,
+      "operator": "<",
+      "threshold": 0.01
+    }
+  },
+  "diagnostics": {
+    "time_to_first_track_ms": 97.038333,
+    "max_request_queue_depth": 1,
+    "max_result_queue_depth": 0,
+    "missing_frames": 0,
+    "frames_with_tracks": 600,
+    "first_track_frame": 1,
+    "process_cpu_percent_mean": 143.65752900769925,
+    "sampled_peak_rss_mib": 341.59375,
+    "worker_counts": {
+      "bootstrap_started": 1,
+      "detections_capped": 0,
+      "bootstrap_completed": 1,
+      "started": 177,
+      "completed": 177,
+      "published": 176,
+      "unsupported_births": 3,
+      "shutdown_discarded": 1
+    },
+    "detector_freshness_ms": {
+      "mean": 270.0672837533333,
+      "p50": 245.01108299999999,
+      "p95": 511.89497049999994,
+      "p99": 611.46063309
+    }
+  },
+  "qualification": "Run-level timing and useful-fusion checks; accuracy and physical-camera qualification remain separate",
+  "timestamp_utc": "2026-10-18T20:57:05.807062+00:00",
+  "contract": {
+    "version": 2,
+    "camera_fps": 30.0,
+    "throughput_min_fps": 30.0,
+    "p95_e2e_max_ms": 33.0,
+    "p99_e2e_max_ms": 33.0,
+    "deadline_ms": 33.0,
+    "deadline_miss_max_fraction": 0.01,
+    "minimum_frames": 600,
+    "minimum_fused_detection_ratio": 0.1
+  },
+  "design_sha256": "5b4414c5dccdcc9a452d3846a7a5fc2c587f154b4ffc5017e51f5739da286b8b",
+  "design_path": "/Users/yashasvijay/Desktop/ECCV_Research/docs/DESIGN.md",
+  "verifier_sha256": "0d1e7283e903a6d54c75d36dbd6a6faef9d270a44d3fce2c08dd074d8a15534b",
+  "mode": "paced_replay",
+  "model_sha256": "3586b83d3d87a0465a7df8a85b9c0fb7c8fbac4efacd1dbb5e1ae535707dbc4b",
+  "input_hashes": {
+    "summary.json": "d0a31aee032e53d9d7a82f1e95116e2308c9377febfe6584baae73b6eaab1666",
+    "frames.jsonl": "f7bb8f6a3ca5de245df4f2a8e3d8202bf790089b7b7156396c5eb678ab0b4d20"
+  },
+  "runtime_directory": "/Users/yashasvijay/Desktop/ECCV_Research/results/slos/mot17-02-fixed3-populated/runtime"
+}

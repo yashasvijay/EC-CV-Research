@@ -43,6 +43,7 @@ class RuntimeConfig:
     telemetry_frames: int = 4096
     covariance: bool = True
     synchronous_bootstrap: bool = True
+    bootstrap_min_interval_frames: int = 15
     offline: bool = False
     epoch: str = "default"
 
@@ -74,6 +75,7 @@ class RuntimeConfig:
             "min_points",
             "max_frame_gap",
             "telemetry_frames",
+            "bootstrap_min_interval_frames",
         ):
             object.__setattr__(self, name, integer(getattr(self, name), name, 1))
         object.__setattr__(self, "max_commit_frames", integer(self.max_commit_frames, "max_commit_frames"))

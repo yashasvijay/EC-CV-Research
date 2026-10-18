@@ -50,7 +50,8 @@ def load_contract(path: Path) -> dict[str, Any]:
         "deadline_ms",
         "deadline_miss_max_fraction",
         "minimum_frames",
-        "minimum_fused_detection_ratio",
+        "minimum_track_frame_fraction",
+        "minimum_useful_fusion_ratio",
     }
     if not isinstance(contract, dict) or set(contract) != expected:
         raise ValueError("Unexpected SLO contract fields")
@@ -62,9 +63,11 @@ def load_contract(path: Path) -> dict[str, Any]:
             or value <= 0
         ):
             raise ValueError("Contract values must be finite and positive")
-    if contract["version"] != 2 or type(contract["minimum_frames"]) is not int:
+    if contract["version"] != 3 or type(contract["minimum_frames"]) is not int:
         raise ValueError("Unsupported contract version or frame count")
-    if contract["minimum_fused_detection_ratio"] > 1:
+    if contract["minimum_track_frame_fraction"] > 1:
+        raise ValueError("Track-frame threshold exceeds one")
+    if contract["minimum_useful_fusion_ratio"] > 1:
         raise ValueError("Fusion ratio threshold exceeds one")
     if contract["deadline_miss_max_fraction"] >= 1 or contract["throughput_min_fps"] > contract["camera_fps"]:
         raise ValueError("Inconsistent SLO thresholds")
@@ -72,7 +75,11 @@ def load_contract(path: Path) -> dict[str, Any]:
 
 
 def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[str, Any]) -> dict[str, Any]:
-    """Recompute capture-to-output SLIs; incomplete telemetry cannot pass."""
+    """Require >=95% live-frame coverage and useful background fusion-run ratio.
+
+    One useful run accepts at least one correction, regardless of box count.
+    Bootstrap, empty results and rejected results do not enter its numerator.
+    """
     checks: dict[str, Any] = {}
     try:
         n = len(rows)
@@ -123,7 +130,15 @@ def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[s
         if not isinstance(summary.get("worker_counts"), dict) or not isinstance(summary.get("counts"), dict):
             raise ValueError("Missing detector/fusion counters")
         completed = summary.get("worker_counts", {}).get("completed", 0)
-        fused = summary.get("counts", {}).get("fused_with_tracks", 0)
+        counters = summary["counts"]
+        # Contract-v2 saved artifacts used this legacy name for the same run-level count.
+        fused = counters.get("useful_fusion_runs", counters.get("fused_with_tracks", 0))
+        if (
+            "useful_fusion_runs" in counters
+            and "fused_with_tracks" in counters
+            and counters["useful_fusion_runs"] != counters["fused_with_tracks"]
+        ):
+            raise ValueError("Conflicting useful fusion run counts")
         useful_rows = sum(r.get("accepted_detection_update") is True for r in rows)
         if (
             type(completed) is not int
@@ -134,19 +149,21 @@ def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[s
             or fused != useful_rows
         ):
             raise ValueError("Missing/inconsistent useful fusion counters")
-        checks["active_tracks"] = {
-            "status": "PASS" if track_frames > 0 else "FAIL",
-            "measured": track_frames,
-            "operator": ">",
-            "threshold": 0,
-        }
-        checks["fused_detection_ratio"] = {
+        checks["track_frame_fraction"] = {
             "status": "PASS"
-            if completed > 0 and fused / completed >= contract["minimum_fused_detection_ratio"]
+            if track_frames / expected >= contract["minimum_track_frame_fraction"]
+            else "FAIL",
+            "measured": track_frames / expected,
+            "operator": ">=",
+            "threshold": contract["minimum_track_frame_fraction"],
+        }
+        checks["useful_fusion_ratio"] = {
+            "status": "PASS"
+            if completed > 0 and fused / completed >= contract["minimum_useful_fusion_ratio"]
             else "FAIL",
             "measured": fused / completed if completed else 0.0,
             "operator": ">=",
-            "threshold": contract["minimum_fused_detection_ratio"],
+            "threshold": contract["minimum_useful_fusion_ratio"],
         }
         checks["measurement_integrity"] = {
             "status": "FAIL" if issues else "PASS",
@@ -181,6 +198,9 @@ def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[s
             "max_result_queue_depth": max(r.get("result_queue_depth", 0) for r in rows),
             "missing_frames": missing,
             "frames_with_tracks": sum(r.get("tracks", 0) > 0 for r in rows),
+            "useful_fusion_runs": fused,
+            "completed_background_runs": completed,
+            "useful_fusion_ratio_definition": "background runs with >=1 accepted correction / completed background detector runs; excludes bootstrap",
             "first_track_frame": next((r["frame"] for r in rows if r.get("tracks", 0) > 0), None),
             "process_cpu_percent_mean": summary.get("process_cpu_percent_mean"),
             "sampled_peak_rss_mib": summary.get("sampled_peak_rss_mib"),
@@ -196,8 +216,8 @@ def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[s
                 "p95_e2e_ms",
                 "p99_e2e_ms",
                 "deadline_miss_fraction",
-                "active_tracks",
-                "fused_detection_ratio",
+                "track_frame_fraction",
+                "useful_fusion_ratio",
             ]
         }
         diagnostics = {}
@@ -372,8 +392,8 @@ def main(argv: list[str] | None = None) -> int:
                             "p95_e2e_ms",
                             "p99_e2e_ms",
                             "deadline_miss_fraction",
-                            "active_tracks",
-                            "fused_detection_ratio",
+                            "track_frame_fraction",
+                            "useful_fusion_ratio",
                         ]
                     },
                 },
