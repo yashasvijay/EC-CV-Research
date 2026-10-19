@@ -47,6 +47,7 @@ def load_contract(path: Path) -> dict[str, Any]:
         "throughput_min_fps",
         "p95_e2e_max_ms",
         "p99_e2e_max_ms",
+        "p95_detection_age_max_ms",
         "deadline_ms",
         "deadline_miss_max_fraction",
         "minimum_frames",
@@ -63,7 +64,7 @@ def load_contract(path: Path) -> dict[str, Any]:
             or value <= 0
         ):
             raise ValueError("Contract values must be finite and positive")
-    if contract["version"] != 3 or type(contract["minimum_frames"]) is not int:
+    if contract["version"] != 4 or type(contract["minimum_frames"]) is not int:
         raise ValueError("Unsupported contract version or frame count")
     if contract["minimum_track_frame_fraction"] > 1:
         raise ValueError("Track-frame threshold exceeds one")
@@ -165,6 +166,21 @@ def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[s
             "operator": ">=",
             "threshold": contract["minimum_useful_fusion_ratio"],
         }
+        ages = [r.get("track_detection_age_ms") for r in rows if r.get("tracks", 0) > 0]
+        valid_ages = bool(ages) and all(
+            isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and v >= 0
+            for v in ages
+        )
+        age_p95 = float(np.percentile(ages, 95)) if valid_ages else None
+        checks["p95_detection_age_ms"] = {
+            "status": "PASS"
+            if age_p95 is not None and age_p95 < contract["p95_detection_age_max_ms"]
+            else "FAIL",
+            "measured": age_p95,
+            "operator": "<",
+            "threshold": contract["p95_detection_age_max_ms"],
+            "definition": "maximum active-track anchor age plus capture-to-output latency; missing data fails",
+        }
         checks["measurement_integrity"] = {
             "status": "FAIL" if issues else "PASS",
             "issues": issues,
@@ -206,6 +222,10 @@ def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[s
             "sampled_peak_rss_mib": summary.get("sampled_peak_rss_mib"),
             "worker_counts": summary.get("worker_counts"),
             "detector_freshness_ms": summary.get("detector_freshness_ms"),
+            "track_detection_age_ms": summary.get("track_detection_age_ms"),
+            "correction_acceptance_rate": summary.get("correction_acceptance_rate"),
+            "packet_accounting": summary.get("packet_accounting"),
+            "identification_metrics": summary.get("identification_metrics"),
         }
     except (KeyError, TypeError, ValueError, OverflowError) as exc:
         checks = {
@@ -215,6 +235,7 @@ def assess(summary: dict[str, Any], rows: list[dict[str, Any]], contract: dict[s
                 "throughput_fps",
                 "p95_e2e_ms",
                 "p99_e2e_ms",
+                "p95_detection_age_ms",
                 "deadline_miss_fraction",
                 "track_frame_fraction",
                 "useful_fusion_ratio",
@@ -391,6 +412,7 @@ def main(argv: list[str] | None = None) -> int:
                             "throughput_fps",
                             "p95_e2e_ms",
                             "p99_e2e_ms",
+                            "p95_detection_age_ms",
                             "deadline_miss_fraction",
                             "track_frame_fraction",
                             "useful_fusion_ratio",

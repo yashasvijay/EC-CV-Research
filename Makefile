@@ -2,7 +2,7 @@ PYTHON ?= python
 
 .PHONY: install test lint typecheck check
 install:
-	$(PYTHON) -m pip install -e '.[dev]'
+	$(PYTHON) -m pip install -e '.[dev,eval]'
 test:
 	$(PYTHON) -m pytest -q
 lint:

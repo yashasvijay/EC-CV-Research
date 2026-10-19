@@ -148,6 +148,11 @@ def evaluate_run(sequence_path, run_dir):
     if not all(np.isfinite(value) for value in extracted.values()):
         raise ValueError("TrackEval returned non-finite metrics")
     summary.update(extracted)
+    summary["identification_metrics"] = {
+        "IDF1": extracted["IDF1"],
+        "IDSW": extracted["IDSW"],
+        "status": "evaluated_by_trackeval",
+    }
     summary.update(
         accuracy_status="evaluated",
         evaluation={

@@ -110,7 +110,7 @@ These are earlier single-run controls, not measurements of the optimized async t
 
 The paired experiment used three repetitions of the same 50-frame/saved-box workload, alternating backend order. Repeat means were 117.159/189.146/137.086 ms versus 1.404/3.402/1.486 ms. Substantial variation limits a stable hardware-wide speedup claim. Native attribution includes profiler/timer overhead and excludes Python crop preparation; it must not be conflated with the paired boundary. The updated synchronous profile measured 8.06 FPS, 118.78 ms mean pipeline latency and 143.44 ms p99. [Full ROI evidence](roi-features/results.md).
 
-### 5.3. Populated async run-level SLO result
+### 5.3. Historical populated async run-level SLO result (contract v3)
 
 | SLI | Measurement | Threshold | Result |
 |---|---:|---:|---|
@@ -167,3 +167,5 @@ Choose a new SLO output directory and wait for idle-host preflight. The exact at
 3. Luiten et al., [*HOTA: A Higher Order Metric for Evaluating Multi-object Tracking*](https://arxiv.org/abs/2009.07736), 2020.
 4. [TrackEval reference implementation](https://github.com/JonathonLuiten/TrackEval).
 5. [MOTChallenge MOT17](https://motchallenge.net/data/MOT17/).
+
+The concurrency refactor introduces idle-slot admission, births-only LK replay, current-frame matched-track reseeding, and nonblocking adoption during recovery. Contract v4 adds a per-track detection-age p95 limit of 300 ms. The historical export lacks this measurement and does not establish v4 compliance; new timing and tracking evaluation are required.

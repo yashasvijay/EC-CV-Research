@@ -4,7 +4,7 @@ A producer–consumer runtime for tracking-by-detection: the main thread propaga
 
 The project studies throughput, latency and tracking fidelity under constrained inference capacity. It includes four swappable schedulers, MOT17 adapters, causal/deadline-valid TrackEval exports, stage profiling, and a versioned SLO verifier. The runtime is implemented; full tracking qualification remains open.
 
-## SLO verification table
+## Historical SLO verification table (contract v3)
 
 The saved **MOT17-02-FRCNN, FixedKPolicy(3), 600-frame, 30 Hz paced replay** maintained tracks on every frame. The original contract-v2 artifacts and their full raw logs are committed under `results/slos/mot17-02-fixed3-populated/`; [contract-v3 revalidation](results/slos/mot17-02-fixed3-populated/verification-v3/slo_report.json) additionally enforces ≥95% track-frame coverage.
 
@@ -23,7 +23,7 @@ The first track appeared after **97.04 ms**; synchronous bootstrap cost is inclu
 
 [Original SLO report](results/slos/mot17-02-fixed3-populated/slo_report.json) · [Raw frame ledger](results/slos/mot17-02-fixed3-populated/runtime/frames.jsonl) · [Evidence and scope](docs/verified-performance.md)
 
-The older 30 FPS / 5.61 ms p99 run published no tracks and fails current gates. Its artifacts remain separate and are not the current tracking result. The populated measurement predates the empty-scene cooldown change; no new hardware speedup is attributed to this audit fix.
+The older 30 FPS / 5.61 ms p99 run published no tracks and fails current gates. Its artifacts remain separate and are not the current tracking result. The populated measurement predates subsequent concurrency changes. Contract v4 additionally requires per-track detection-age p95 <300 ms; the historical export lacks this field and cannot pass v4. No new hardware performance is claimed for this refactor.
 
 ## Localized ROI optimization
 

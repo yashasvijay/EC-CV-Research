@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import sys
 
 import pytest
 from scripts.plot_pareto import frontier_2d, load_results
@@ -85,7 +86,12 @@ def test_missing_baseline_and_inconsistent_frontier_rejected(exports):
 
 
 def test_actual_headless_png_export(exports, tmp_path):
-    python = Path(os.environ.get("EVAL_PYTHON", ".venv-eval/bin/python")).absolute()
+    python = Path(
+        os.environ.get(
+            "EVAL_PYTHON",
+            ".venv-eval/bin/python" if Path(".venv-eval/bin/python").is_file() else sys.executable,
+        )
+    ).absolute()
     assert python.is_file(), "Install the documented evaluation environment"
     image = tmp_path / "figures/pareto_frontier.png"
     environment = os.environ | {"MPLCONFIGDIR": str(tmp_path / "mpl-cache")}
