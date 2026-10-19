@@ -40,7 +40,7 @@ from .runtime.packets import (
     _Frame,
 )
 from .runtime.history import _History
-from .runtime.motion import _owned
+from .runtime.motion import _owned, _seed
 from .motion import advance_batch
 from .runtime.mailbox import _offer_latest
 from .runtime.detector_worker import DetectionWorker, DetectionWorkerError
@@ -184,6 +184,7 @@ class AsyncTrackerRuntime:
         }
 
     def _reject_result(self, result: DetectionResult, reason: str) -> str:
+        self.counts["results_rejected"] += 1
         self.counts[f"result_rejected_{reason}"] += 1
         self._event(EventKind.STALE_DISCARDED, result.source_frame, result.source_time_ns)
         return reason
@@ -198,22 +199,31 @@ class AsyncTrackerRuntime:
             return self._reject_result(result, "expired")
         if result.rejection:
             return self._reject_result(result, result.rejection)
-        if current.frame_idx - result.target_frame > self.config.max_commit_frames:
-            return self._reject_result(result, "target_lag")
+
         if (deadline - self.clock()) / 1e6 < self.fusion_estimate_ms:
             return self._reject_result(result, "deadline_headroom")
-        path = self.history.lease(result.target_frame, current.frame_idx)
-        if path is None:
-            return self._reject_result(result, "history_gap")
+        births_allowed = current.frame_idx - result.target_frame <= self.config.max_commit_frames
+        path = (
+            self.history.lease(result.target_frame, current.frame_idx)
+            if births_allowed and any(c.track_id is None for c in result.corrections)
+            else None
+        )
         live = {t.id: t for t in self.tracker.tracks}
         staged: list[tuple[_Correction, np.ndarray, np.ndarray, float, KalmanBox | None]] = []
         try:
             eligible = [
                 c
                 for c in result.corrections
-                if c.track_id is None or (c.track_id in live and self.revisions[c.track_id] == c.revision)
+                if (c.track_id is None and path is not None)
+                or (c.track_id in live and self.revisions[c.track_id] == c.revision)
             ]
-            self.counts["corrections_rejected_revision"] += len(result.corrections) - len(eligible)
+            self.counts["corrections_rejected_revision"] += sum(
+                c.track_id is not None
+                and (c.track_id not in live or self.revisions[c.track_id] != c.revision)
+                for c in result.corrections
+            )
+            if not eligible and result.corrections and all(c.track_id is None for c in result.corrections):
+                return self._reject_result(result, "target_lag" if not births_allowed else "history_gap")
             boxes = [c.detection[:4].copy() for c in eligible]
             points_batch = [c.points.copy() for c in eligible]
             confidences = [c.confidence for c in eligible]
@@ -225,18 +235,20 @@ class AsyncTrackerRuntime:
                     filter_ = KalmanBox(box)
                     filter_.x, filter_.P = correction.filter_x.copy(), correction.filter_p.copy()
                 filters.append(filter_)
-            for previous, following in zip(path.frames, path.frames[1:]):
+            birth_indices = [j for j, c in enumerate(eligible) if c.track_id is None]
+            replay_frames = path.frames if path is not None else ()
+            for previous, following in zip(replay_frames, replay_frames[1:]):
                 if self.clock() >= deadline:
                     return self._reject_result(result, "commit_budget")
                 updates = advance_batch(
                     previous.gray,
                     following.gray,
-                    boxes,
-                    points_batch,
+                    [boxes[j] for j in birth_indices],
+                    [points_batch[j] for j in birth_indices],
                     min_points=self.config.min_points,
                     fb_threshold=self.config.fb_threshold,
                 )
-                for j, update in enumerate(updates):
+                for j, update in zip(birth_indices, updates):
                     boxes[j], points_batch[j] = update.box, update.points
                     confidences[j] *= update.quality
                     filter_ = filters[j]
@@ -248,7 +260,15 @@ class AsyncTrackerRuntime:
                 track = live.get(correction.track_id) if correction.track_id is not None else None
                 box, points, confidence, filter_ = boxes[j], points_batch[j], confidences[j], filters[j]
                 if track is not None:
+                    assert correction.residual is not None
                     box = track.box + correction.residual
+                    if filter_ is not None:
+                        filter_.predict(
+                            max(
+                                0.0,
+                                (current.source_ns - result.source_time_ns) / 1e9 * self.config.frame_rate,
+                            )
+                        )
                 elif len(points) < self.config.min_points or confidence <= 0:
                     self.counts["unsupported_births"] += 1
                     continue
@@ -257,6 +277,9 @@ class AsyncTrackerRuntime:
                 if np.any(box[2:] <= box[:2]):
                     self.counts["invalid_corrected_boxes"] += 1
                     continue
+                if track is not None:
+                    points = _seed(current.gray, box, self.config)
+                    confidence = 1.0 if len(points) >= self.config.min_points else 0.0
                 staged.append((correction, box.astype(np.float32), points, confidence, filter_))
             if self.clock() >= deadline:
                 return self._reject_result(result, "commit_budget")
@@ -289,8 +312,7 @@ class AsyncTrackerRuntime:
                     self.revisions[track.id] = 0
                 track.box, track.score = box.copy(), float(correction.detection[4])
                 track.missed = 0
-                if len(points) >= self.config.min_points:
-                    track.points, track.confidence = points.copy(), confidence
+                track.points, track.confidence = points.copy(), confidence
                 self.revisions[track.id] += 1
                 self.anchors[track.id] = (result.source_frame, result.source_time_ns)
                 if filter_ is not None:
@@ -301,18 +323,26 @@ class AsyncTrackerRuntime:
             self.last_fused_frame = result.source_frame
             self.last_fused_source_ns = result.source_time_ns
             self.last_fused_capture_ns = result.source_capture_ns
+            self.counts["corrections_accepted"] += accepted
             self.counts["fused"] += 1
             self.counts["useful_fusion_runs"] += int(accepted > 0)
             self._event(EventKind.FUSED, result.source_frame, result.source_time_ns)
             return "fused"
         finally:
-            path.release()
+            if path is not None:
+                path.release()
 
     def _bootstrap(self, frame: np.ndarray, current: _Frame) -> bool:
         """Initialize supported live tracks synchronously; caller includes all cost in latency."""
+        if not self.worker.available():
+            self.counts["bootstrap_deferred_busy"] += 1
+            return False
+        detections = self.worker.detect_sync(_owned(frame))
+        if detections is None:
+            self.counts["bootstrap_deferred_busy"] += 1
+            return False
         self.counts["bootstrap_calls"] += 1
         self.last_bootstrap_frame = current.frame_idx
-        detections = self.worker.detect_sync(_owned(frame))
         self.tracker.update(current.gray, detections)
         self.tracker.tracks = [t for t in self.tracker.tracks if len(t.points) >= self.config.min_points]
         self.filters.clear()
@@ -432,10 +462,23 @@ class AsyncTrackerRuntime:
         except queue.Empty:
             result = None
         if result is not None:
+            accepted_before = self.counts["corrections_accepted"]
+            terminal_before = self.counts["results_rejected"] + self.counts["fused"]
+            self.counts["corrections_received"] += len(result.corrections)
+            was_empty = not self.tracker.visible()
             try:
                 result_age = (self.clock() - result.source_capture_ns) / 1e6
                 fusion = self._fuse(result, current, deadline)
+                if was_empty and self.tracker.visible():
+                    self.counts["bootstrap_adopted_results"] += 1
+            except BaseException:
+                if self.counts["results_rejected"] + self.counts["fused"] == terminal_before:
+                    self.counts["results_rejected"] += 1
+                raise
             finally:
+                self.counts["corrections_rejected"] += len(result.corrections) - (
+                    self.counts["corrections_accepted"] - accepted_before
+                )
                 result.release()
                 self.results.task_done()
         after_fusion = self.clock()
@@ -455,8 +498,11 @@ class AsyncTrackerRuntime:
             self.counts["bootstrap_cooldown_frames"] += 1
         bootstrap_attempted = self.config.synchronous_bootstrap and empty_scene and cooldown_remaining == 0
         bootstrap_start = self.clock()
-        if bootstrap_attempted:
+        bootstrap_calls_before = self.counts["bootstrap_calls"]
+        bootstrap_eligible = bootstrap_attempted
+        if bootstrap_eligible:
             self._bootstrap(frame, current)
+        bootstrap_attempted = self.counts["bootstrap_calls"] > bootstrap_calls_before
         bootstrap_ms = (self.clock() - bootstrap_start) / 1e6 if bootstrap_attempted else 0.0
         before_schedule = self.clock()
         latest_started, latest_service = self.worker.latest()
@@ -466,7 +512,7 @@ class AsyncTrackerRuntime:
             source_time_ns=source,
             epoch=self.config.epoch,
             offline=self.config.offline,
-            worker_available=not self.worker.busy.is_set(),
+            worker_available=self.worker.available(),
             remaining_budget_ms=(deadline - self.clock()) / 1e6,
             last_requested_frame=self.last_requested,
             last_admitted_frame=self.last_admitted,
@@ -475,11 +521,20 @@ class AsyncTrackerRuntime:
         )
         decision = self.scheduler.decide(context)
         admission = "synchronous_bootstrap" if bootstrap_attempted else "not_requested"
-        if decision.should_detect and not bootstrap_attempted:
+        if decision.should_detect and not bootstrap_eligible and not context.worker_available:
+            self.counts["requests_deferred_busy"] += 1
+            admission = "worker_busy"
+        if (
+            decision.should_detect
+            and not bootstrap_eligible
+            and context.worker_available
+            and self.worker.reserve()
+        ):
             self.counts["policy_requests"] += 1
             self.last_requested = index
             lease = self.history.lease(index, index) if admitted_history else None
             if lease is None:
+                self.worker.busy.clear()
                 admission = "history_unavailable"
                 self._event(EventKind.REJECTED, index, source)
                 self.counts["requests_rejected"] += 1
@@ -513,6 +568,7 @@ class AsyncTrackerRuntime:
                     )
                     evicted = _offer_latest(self.requests, request)
                 except BaseException:
+                    self.worker.busy.clear()
                     lease.release()
                     raise
                 if evicted is not None:
@@ -542,6 +598,10 @@ class AsyncTrackerRuntime:
         )
         published = self.clock()
         age = None if self.last_fused_capture_ns is None else (published - self.last_fused_capture_ns) / 1e6
+        track_age = max(
+            ((source - self.anchors[t.id][1]) / 1e6 + (published - capture) / 1e6 for t in output_tracks),
+            default=None,
+        )
         row: dict[str, object] = {
             "frame": index,
             "source_time_ns": source,
@@ -551,6 +611,7 @@ class AsyncTrackerRuntime:
             if capture_time_ns is not None
             else "host_receipt",
             "bootstrap_attempted": bootstrap_attempted,
+            "bootstrap_deferred_busy": bootstrap_eligible and not bootstrap_attempted,
             "bootstrap_suppressed": bootstrap_suppressed,
             "bootstrap_cooldown_remaining_frames": cooldown_remaining,
             "bootstrap_ms": bootstrap_ms,
@@ -573,6 +634,7 @@ class AsyncTrackerRuntime:
             "fusion": fusion,
             "result_source_age_ms": result_age,
             "detector_freshness_ms": age,
+            "track_detection_age_ms": track_age,
             "detector_service_ms": (result.completed_ns - result.started_ns) / 1e6 if result else None,
             "detector_prepare_ms": (result.published_ns - result.completed_ns) / 1e6 if result else None,
             "estimated_fusion_ms": self.fusion_estimate_ms,
@@ -672,6 +734,7 @@ class AsyncTrackerRuntime:
             self.results.task_done()
             self.counts["results_shutdown_discarded"] += 1
         self._pump_events()
+        self.worker.busy.clear()
         self.history.clear()
         self.ended_ns = self.clock()
         self.state = "failed" if self.worker.error or self.main_error else "stopped"
@@ -691,7 +754,49 @@ class AsyncTrackerRuntime:
         source_frames = frames + self.counts["source_frames_missing"]
         worker = self.worker.snapshot()
         cpu = sum(self.process.cpu_times()[:2]) - self.cpu_started if self.started_ns else 0
+        wc = worker["counts"]
+        admitted = self.counts["requests_admitted"]
+        started = wc.get("started", 0)
+        superseded = (
+            self.counts["requests_superseded"]
+            + self.counts["requests_shutdown_discarded"]
+            + wc.get("prestart_cancelled", 0)
+        )
+        published = wc.get("published", 0)
+        rejected = (
+            self.counts["results_rejected"]
+            + self.counts["results_shutdown_discarded"]
+            + wc.get("result_superseded", 0)
+        )
         return {
+            "packet_accounting": {
+                "quiescent": not self.worker.is_alive()
+                and self.requests.unfinished_tasks == 0
+                and self.results.unfinished_tasks == 0,
+                "admitted": admitted,
+                "started": started,
+                "superseded": superseded,
+                "published": published,
+                "fused": self.counts["fused"],
+                "rejected": rejected,
+                "admission_balance": admitted - started - superseded,
+                "publication_balance": published - self.counts["fused"] - rejected,
+                "superseded_definition": "admitted requests cancelled before start, including expiry and shutdown",
+            },
+            "correction_acceptance_rate_definition": "accepted / consumed prepared correction proposals; worker birth-replay failures are reported separately",
+            "correction_acceptance_rate": self.counts["corrections_accepted"]
+            / self.counts["corrections_received"]
+            if self.counts["corrections_received"]
+            else None,
+            "track_detection_age_ms": _stats(
+                r["track_detection_age_ms"] for r in rows if r["track_detection_age_ms"] is not None
+            ),
+            "track_detection_age_definition": "maximum published-track anchor age in source time plus capture-to-output latency; excludes frames without tracks",
+            "identification_metrics": {
+                "IDF1": None,
+                "IDSW": None,
+                "status": "not_evaluated; requires ground-truth association evaluation",
+            },
             "status": "complete" if self.state == "stopped" and not self.worker.error else "partial",
             "runtime_state": self.state,
             "config": asdict(self.config),
@@ -736,7 +841,7 @@ class AsyncTrackerRuntime:
             else 0.0,
             "useful_fusion_ratio_definition": "background runs with >=1 accepted correction / completed background detector runs; excludes bootstrap",
             "bootstrap_attempt_fraction": self.counts["bootstrap_calls"] / frames if frames else 0.0,
-            "track_frame_fraction": sum(r["tracks"] > 0 for r in rows) / source_frames
+            "track_frame_fraction": self.counts["frames_with_tracks"] / source_frames
             if source_frames
             else 0.0,
             "effective_replay_budget_ms": self.config.effective_replay_budget_ms,

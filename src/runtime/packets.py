@@ -132,6 +132,8 @@ class DetectionRequest:
 
 @dataclass(frozen=True)
 class _Correction:
+    """Births carry target-frame points; matches carry source residual/filter state."""
+
     detection: np.ndarray
     points: np.ndarray
     confidence: float
@@ -144,7 +146,7 @@ class _Correction:
 
 @dataclass(frozen=True)
 class DetectionResult:
-    """Completed source observation and bounded replay proposal."""
+    """Source observation with matched residuals and births aligned to target_frame."""
 
     request_id: int
     epoch: str

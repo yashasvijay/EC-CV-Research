@@ -1,0 +1,194 @@
+{
+  "status": "PASS",
+  "checks": {
+    "track_frame_fraction": {
+      "status": "PASS",
+      "measured": 1.0,
+      "operator": ">=",
+      "threshold": 0.95
+    },
+    "useful_fusion_ratio": {
+      "status": "PASS",
+      "measured": 0.9949494949494949,
+      "operator": ">=",
+      "threshold": 0.1
+    },
+    "p95_detection_age_ms": {
+      "status": "PASS",
+      "measured": 182.931975,
+      "operator": "<",
+      "threshold": 300.0,
+      "definition": "maximum active-track anchor age plus capture-to-output latency; missing data fails"
+    },
+    "measurement_integrity": {
+      "status": "PASS",
+      "issues": [],
+      "frames": 600
+    },
+    "throughput_fps": {
+      "status": "PASS",
+      "measured": 30.0,
+      "operator": ">=",
+      "threshold": 30.0
+    },
+    "p95_e2e_ms": {
+      "status": "PASS",
+      "measured": 20.910568749999996,
+      "operator": "<",
+      "threshold": 33.0
+    },
+    "p99_e2e_ms": {
+      "status": "PASS",
+      "measured": 23.57004507999999,
+      "operator": "<",
+      "threshold": 33.0
+    },
+    "deadline_miss_fraction": {
+      "status": "PASS",
+      "measured": 0.006666666666666667,
+      "operator": "<",
+      "threshold": 0.01
+    }
+  },
+  "diagnostics": {
+    "time_to_first_track_ms": 102.490208,
+    "max_request_queue_depth": 1,
+    "max_result_queue_depth": 0,
+    "missing_frames": 0,
+    "frames_with_tracks": 600,
+    "useful_fusion_runs": 197,
+    "completed_background_runs": 198,
+    "useful_fusion_ratio_definition": "background runs with >=1 accepted correction / completed background detector runs; excludes bootstrap",
+    "first_track_frame": 1,
+    "process_cpu_percent_mean": 38.50491773718223,
+    "sampled_peak_rss_mib": 201.90625,
+    "worker_counts": {
+      "bootstrap_started": 1,
+      "detections_capped": 0,
+      "bootstrap_completed": 1,
+      "started": 198,
+      "completed": 198,
+      "published": 197,
+      "shutdown_discarded": 1
+    },
+    "detector_freshness_ms": {
+      "mean": 150.32470600333332,
+      "p50": 146.67175,
+      "p95": 182.931975,
+      "p99": 184.7869905
+    },
+    "track_detection_age_ms": {
+      "mean": 150.32470600333332,
+      "p50": 146.67175,
+      "p95": 182.931975,
+      "p99": 184.78699049999997
+    },
+    "correction_acceptance_rate": 1.0,
+    "packet_accounting": {
+      "quiescent": true,
+      "admitted": 198,
+      "started": 198,
+      "superseded": 0,
+      "published": 197,
+      "fused": 197,
+      "rejected": 0,
+      "admission_balance": 0,
+      "publication_balance": 0,
+      "superseded_definition": "admitted requests cancelled before start, including expiry and shutdown"
+    },
+    "identification_metrics": {
+      "IDF1": null,
+      "IDSW": null,
+      "status": "not_evaluated; requires ground-truth association evaluation"
+    }
+  },
+  "qualification": "Run-level timing and useful-fusion checks; accuracy and physical-camera qualification remain separate",
+  "contract": {
+    "version": 4,
+    "camera_fps": 30.0,
+    "throughput_min_fps": 30.0,
+    "p95_e2e_max_ms": 33.0,
+    "p99_e2e_max_ms": 33.0,
+    "p95_detection_age_max_ms": 300.0,
+    "deadline_ms": 33.0,
+    "deadline_miss_max_fraction": 0.01,
+    "minimum_frames": 600,
+    "minimum_useful_fusion_ratio": 0.1,
+    "minimum_track_frame_fraction": 0.95
+  },
+  "design_sha256": "540577a39ada10fbc05664e556ff221544c6bbb8e087bfbbc3f83f8d6f4e5069",
+  "workload": {
+    "workload": "synthetic moving textured boxes; exact source detections",
+    "scope": "sleep simulates detector service delay; not CPU/power scaling, learned accuracy or hardware equivalence",
+    "injected_detector_min_ms": 80.0,
+    "source_frames": 600,
+    "width": 1920,
+    "height": 1080,
+    "synthetic_objects": 10,
+    "seed": 42,
+    "threads": 1,
+    "bootstrap_injection": true,
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.3",
+    "packages": {
+      "opencv": "4.14.0",
+      "numpy": "2.5.4"
+    },
+    "code_sha256": {
+      "src/detector.py": "54b7e83971b657c71df8cc3466a34be42c92ac91216419d5a9b05c87d6fbde97",
+      "src/benchmark.py": "aa224428153b782e6661fe079d0bc8a1bc3d4d5ee44c7171aeb3823d887b56df",
+      "src/sort_tracker.py": "1581a78f229f7eb08eb116b20cc57681f7998e18f3f3426f0b2015db5cca357f",
+      "src/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/features.py": "aa704a34082f65779d237effa13b736a40b540dcf8c58df277bbc33bb63015ed",
+      "src/native_gating.py": "8eaf662eb87a96313069bdc7a97b3ad1434f92b10c8b39b126bd6cac5904d636",
+      "src/types.py": "9df0d76fb85302312bfff50a4a54aab5307bc95f75676e59b45fbb477e1eee19",
+      "src/motion.py": "e844f8d3b9b70ff70c168d48a4dd92da6cfdf49d01488875c66090cceecbc723",
+      "src/opencv_compat.py": "1484646ef35e52baf82b1f754535f5868d1674e64146666fe39e3843b3c6c4c7",
+      "src/pipeline.py": "5f67dcdafcb2e2a49087dcc20bf1e6c1fe926b8691d4972775d5d0be83663cc2",
+      "src/tracker.py": "1d9b191987d9984cf33bbd485d38ae0ae5912ffb97b84aef1beacd99353ea95d",
+      "src/native_pipeline.py": "7bdebd8f5917b5bf13134dae7f075c2bfdd2ebddf6b3bc60aa7d0737bd0729ec",
+      "src/async_pipeline.py": "3e2fb15e1ce1f52c2a5e27fa6567faa5f79f47f50cc705b40685c83eceade763",
+      "src/datasets/__init__.py": "8a5eb2e1cae80f8a50cbc10a235002a87ee47f3387ea9015e1096729388b9103",
+      "src/datasets/mot17.py": "cb4257870ca32768b7018e19003cb70a282df17f1de23ca8867118198c36f9ce",
+      "src/runtime/detector_worker.py": "80360a868aded81ebe2ec5cfee5514f8d2d52da7627587eea4285fe38516b123",
+      "src/runtime/__init__.py": "5dedcdb6706aebe7916653140d0225defe535886e581d4ed695c3f1c02f8c3d7",
+      "src/runtime/motion.py": "a6e3f9e0378d1c691693f75c8902e87e0f57d48a1fc469f208818468f02924d4",
+      "src/runtime/mailbox.py": "bf97b04b4c7d5950bec883f489b900916622902e8ed13e86c686ad30fa80dbb3",
+      "src/runtime/packets.py": "f1452874ad02b56585167ca38c035b9bd9fefa3b4d4e4db4d29d1dffabd0762b",
+      "src/runtime/history.py": "eac838cfe20fca1f5ab1955464e3ab9379e47f6178fafea2df6641a4c7840823",
+      "src/schedulers/kalman.py": "d2744e481a02ddcb6315fe336acf4434bb467a4b1b99abd9d5f2a7d35322af9c",
+      "src/schedulers/__init__.py": "804d2e6305917e3566a3ab96608f3f54062c3263a0df3bbd374aa44d77fb6b29",
+      "src/schedulers/fixed_k.py": "97d10fb1bab2eeeee8fac4e9109c6cff5e689bb02058f42fe69665fd2d622aac",
+      "src/schedulers/oracle.py": "8dad581471c78c344f35bdefa44452d2a35103a78e30e02562bb3b88ac66110c",
+      "src/schedulers/base.py": "c1a152bc4748e43cfd99376ab12be627400724e7f26f7bec5bc98d06f91ff56a",
+      "src/schedulers/heuristic.py": "2725e7dc5185b62c6af3c3ffc2a99d92e2f7f286d3044447ebcbb55a835e6a05"
+    },
+    "driver_sha256": "4709637596649644b20daa4a0d002ceb2abcc2d6bcb4a5df1b253fc653dc165c",
+    "config": {
+      "deadline_ms": 33.0,
+      "frame_rate": 30.0,
+      "queue_capacity": 1,
+      "history_frames": 16,
+      "history_bytes": 67108864,
+      "max_frame_bytes": 33554432,
+      "max_detection_age_ms": 500.0,
+      "max_replay_frames": 12,
+      "max_commit_frames": 2,
+      "fusion_headroom_ms": 3.0,
+      "replay_budget_ms": 100.0,
+      "max_tracks": 128,
+      "max_points": 60,
+      "min_points": 6,
+      "max_frame_gap": 2,
+      "match_iou": 0.3,
+      "fb_threshold": 1.5,
+      "max_track_age_ms": 1500.0,
+      "telemetry_frames": 12000,
+      "covariance": true,
+      "synchronous_bootstrap": true,
+      "bootstrap_min_interval_frames": 15,
+      "offline": false,
+      "epoch": "default"
+    }
+  }
+}

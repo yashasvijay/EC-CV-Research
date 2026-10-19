@@ -9,13 +9,15 @@ class _Lease:
         """Initialize validated configuration and owned runtime state."""
         self.history, self.frames = history, frames
         self.released = False
+        self.release_lock = threading.Lock()
 
     def release(self) -> None:
         """Release the retained frame-history lease."""
-        if not self.released:
-            self.history.release(self.frames)
-            self.released = True
-            self.frames = ()
+        with self.release_lock:
+            if not self.released:
+                self.history.release(self.frames)
+                self.released = True
+                self.frames = ()
 
 
 class _History:

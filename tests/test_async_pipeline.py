@@ -48,7 +48,7 @@ class ControlledDetector:
         return detection(self.shift)
 
 
-def test_lifecycle_nonblocking_frames_latest_pending_and_shutdown():
+def test_lifecycle_nonblocking_frames_idle_admission_and_shutdown():
     detector = ControlledDetector()
     runtime = legacy_runtime(lambda: detector, FixedKPolicy(1), RuntimeConfig(deadline_ms=500))
     factory_thread = []
@@ -62,9 +62,10 @@ def test_lifecycle_nonblocking_frames_latest_pending_and_shutdown():
             output = runtime.process_frame(image(), source_time_ns=index * 33_333_333)
             assert output.frame_idx == index
         assert not detector.release.is_set()  # All five outputs arrived during blocked inference.
-        assert runtime.requests.qsize() == 1
-        assert runtime.counts["requests_superseded"] == 3
-        assert runtime.requests.queue[0].source.frame_idx == 5
+        assert runtime.requests.qsize() == 0
+        assert runtime.counts["requests_superseded"] == 0
+        assert runtime.counts["requests_admitted"] == 1
+        assert runtime.counts["requests_deferred_busy"] == 4
         assert len(first.tracks) == 0
         assert runtime.close(timeout_s=0).worker_alive
         detector.release.set()
@@ -177,7 +178,8 @@ def test_history_memory_bound_does_not_drop_tracking_frames():
             assert runtime.process_frame(image(), source_time_ns=i * 33_333_333).frame_idx == i
         assert runtime.history.usage()["bytes"] <= config.history_bytes
         assert runtime.counts["history_capacity_misses"] == 3
-        assert runtime.counts["requests_rejected"] == 3
+        assert runtime.counts["requests_rejected"] == 0
+        assert runtime.counts["requests_deferred_busy"] == 3
     finally:
         detector.release.set()
         runtime.close()

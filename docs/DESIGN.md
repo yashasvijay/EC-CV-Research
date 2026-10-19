@@ -15,11 +15,12 @@ The following JSON block is the sole executable threshold definition. `scripts/v
 <!-- SLO_CONTRACT_START -->
 ```json
 {
-  "version": 3,
+  "version": 4,
   "camera_fps": 30.0,
   "throughput_min_fps": 30.0,
   "p95_e2e_max_ms": 33.0,
   "p99_e2e_max_ms": 33.0,
+  "p95_detection_age_max_ms": 300.0,
   "deadline_ms": 33.0,
   "deadline_miss_max_fraction": 0.01,
   "minimum_frames": 600,
@@ -34,6 +35,7 @@ The following JSON block is the sole executable threshold definition. `scripts/v
 | Throughput | ≥30 FPS | Published source frames / max(observed wall duration, N/30); caps startup-biased estimates at source rate |
 | End-to-end p95 | <33 ms | Linear NumPy percentile of nominal capture-to-publication latency |
 | End-to-end p99 | <33 ms | Same capture-to-publication population, including late frames |
+| Track detection-age p95 | <300 ms | Per-frame maximum active-track source anchor age plus capture-to-output latency; missing samples fail |
 | Deadline misses | <1% | Missing source frames plus publications with latency **≥33 ms**, divided by all expected frames |
 | Track-frame fraction | ≥95% | Frames publishing ≥1 live track / all expected source frames |
 | Useful fusion ratio | ≥10% | Completed background runs accepting ≥1 correction / completed background runs; excludes bootstrap |
@@ -57,11 +59,11 @@ Accuracy is a separate release prerequisite: evaluate causal and deadline-valid 
 
 Policy intent is distinct from admitted and completed work. Fixed-K, Kalman covariance, adaptive confidence/motion, and every-frame `OraclePolicy` reference use identical queue, replay and covariance settings. The oracle reference requests every frame; it has no ground-truth access or theoretical optimality claim.
 
-## ADR-001: Latest-pending replacement under backpressure
+## ADR-001: Idle-slot admission under backpressure
 
-**Status:** accepted in the current runtime. **Decision:** each queue has capacity one by default. A nonblocking insertion replaces its oldest pending payload when full. The in-flight native inference is not cancelled. Release the displaced request/result's history lease, record replacement/disposal counters and preserve source IDs. Queue operations, not approximate `qsize()` snapshots, determine admission.
+**Status:** accepted; supersedes latest-pending admission. **Decision:** reserve the single worker slot atomically before enqueueing. Both queued requests and pending results make the worker unavailable. Busy policy triggers are deferred, with no payload copy or queue replacement. The defensive latest-pending mailbox retains disposal accounting, but normal producer admission does not supersede requests. In-flight native inference cannot be safely cancelled.
 
-**Rationale:** recent observations are more useful than an arbitrarily old FIFO backlog. Bounded queues limit retained images and observation age. The steady-state tracking loop never waits for detector queue capacity. Synchronous cold-start/recovery is the measured exception described in contract version 2. This policy drops detector requests/results, not source tracking frames. If grayscale history cannot retain an admitted request safely, reject admission and continue publishing tracking output.
+**Rationale:** idle admission avoids redundant snapshots and makes detector ownership explicit. Bounded queues limit retained images and observations. Cold-start inference is allowed only on an idle detector, with cooldown; an empty tracker adopts a valid in-flight result through normal fusion. If history cannot retain a request, release the reservation and continue publishing tracking output.
 
 **Consequences:** a policy request is not an inference guarantee. Effective inference reduction must use completed calls, with admitted/replaced/started/shutdown-discarded counts reported separately. Starvation and long detector freshness are possible; capacity bounds do not prove latency bounds. Worker startup and bounded shutdown joins occur outside the frame loop; an uninterruptible native call may outlive the join timeout and must be reported as incomplete shutdown.
 
@@ -69,9 +71,9 @@ Policy intent is distinct from admitted and completed work. Fixed-K, Kalman cova
 
 ## ADR-002: Source-time replay and guarded stale-detection fusion
 
-**Status:** accepted as a translation approximation, pending full-sequence fidelity validation. Associate boxes against the request's source-frame track snapshot. Seed features only inside cropped active bounding-box ROIs, then replay through a contiguous, leased grayscale history. Prepare corrections off-thread; perform only a bounded short final alignment and commit on the state-owning thread.
+**Status:** accepted as a translation approximation, pending full-sequence fidelity validation. Associate boxes against the request's source-frame track snapshot. For unmatched detections, seed features inside cropped bounding-box ROIs and replay through contiguous, leased grayscale history. Matched proposals skip historical LK, transport the source residual onto the current box, and reseed on the current frame. Prepare corrections off-thread; perform only a bounded short final alignment and commit on the state-owning thread.
 
-Reject wrong epochs, expired or out-of-order observations, excessive target lag, missing history/support, retired identities and changed anchor revisions. Transport a matched source-box residual onto the current propagated box. A new birth requires current feature support and deduplication. Historical detector misses do not immediately erase current tracks. Retain source/arrival/target frame IDs, rejection reasons and detector freshness.
+Reject wrong epochs, expired or out-of-order observations, excessive birth target lag, missing birth history/support, retired identities and changed anchor revisions. Transport a matched source-box residual onto the current propagated box. A new birth requires current feature support and deduplication. Historical detector misses do not immediately erase current tracks. Retain source/arrival/target frame IDs, rejection reasons and detector freshness.
 
 Default limits come from `RuntimeConfig`: 16 history frames /64 MiB, 12 replay frames, 2 final commit frames, 500 ms observation age, 100 ms replay budget and 3 ms commit headroom. BGR payloads and scratch allocations are additional memory. These are implementation limits, not the 33 ms SLO guarantee. A native LK call can overrun soft headroom.
 
@@ -90,7 +92,7 @@ The command checks idle conditions before model execution, runs the real runtime
 
 ## Current verification record
 
-The populated result is recorded with raw logs in `results/slos/mot17-02-fixed3-populated/`. It passes current timing, ≥95% populated-frame and useful-fusion-run checks. The prior empty-output report remains archived and fails those tracking gates. SLO acceptance does not evaluate identity or box accuracy. The at-run version-2 design is preserved separately from this revision.
+The populated result is recorded with raw logs in `results/slos/mot17-02-fixed3-populated/`. It passes the version-3 timing, ≥95% populated-frame and useful-fusion-run checks; it has not passed version 4’s per-track freshness gate. The prior empty-output report remains archived and fails those tracking gates. SLO acceptance does not evaluate identity or box accuracy. The at-run version-2 design is preserved separately from this revision.
 
 ## Tracking-validity gate (contract version 3)
 
@@ -99,3 +101,13 @@ A run must publish live tracks on at least 95% of expected source frames and app
 Synchronous bootstrap is enabled by default when no live tracks remain, with `bootstrap_min_interval_frames=15` between attempts, including empty/failed-to-seed attempts. Between attempts the main thread keeps propagating/publishing and uses the background scheduler; it does not synchronously re-infer every frame. Cooldown suppression and remaining-frame counters are exposed. A value of one explicitly restores per-frame retries for diagnostic tests. It uses the same detector under an inference lock, updates supported ROI tracks at the current source frame, and includes lock wait, inference and reseeding in `bootstrap_ms`, frame-work and capture-to-output latency. It may miss the deadline; bootstrap is not a hidden warmup. Source frame IDs remain one-based. `synchronous_bootstrap=False` is an explicit worker-only diagnostic mode, not the verifier default.
 
 Main-thread propagation, worker replay and final correction alignment batch all track points into one forward/backward LK pair per source step. The Python OpenCV binding rejects prebuilt pyramid tuples, so native LK constructs shared pyramids internally once per batched direction. No redundant `buildOpticalFlowPyramid` prepass is performed. `effective_replay_budget_ms` is capped by the commit-lag window minus a pickup reserve (default 33.33 ms rather than 100 ms); this is soft admission, not a guarantee that a single native call completes within budget. Age, source-order, epoch and target-lag rejection remain enforced.
+
+### Idle admission and correction isolation (contract v4)
+
+The producer reserves an idle detector slot before enqueueing. Pending results also block new admission until consumed. Empty-track recovery adopts the next valid background result; synchronous bootstrap is permitted only when the worker is idle and never waits on its inference lock. Bootstrap cooldown remains in force.
+
+Only unmatched detections replay historical optical flow. Matched corrections retain revision checks, apply the source residual to the live box, and reseed features inside that box on the current frame. A failed birth replay does not invalidate independent matched corrections.
+
+The v4 freshness gate requires p95 maximum active-track detection age below 300 ms. Each sample combines source-time age since the track's accepted anchor with capture-to-output latency. Empty-track frames are excluded from age quantiles and remain subject to the 95% track coverage gate. Old exports lacking this field cannot pass v4. Historical v3 results do not establish compliance with this expanded contract.
+
+After verified shutdown, packet accounting must satisfy admitted = started + superseded and published = fused + rejected. Superseded includes every admitted request cancelled before inference starts, including expiration and shutdown. Published results discarded during shutdown or mailbox replacement count as rejected. Live balances may include outstanding packets. Correction acceptance uses accepted correction proposals divided by consumed proposals; useful fusion uses background runs with at least one accepted correction divided by completed background runs. IDF1 and IDSW remain null until ground-truth evaluation, independently of runtime SLOs.

@@ -124,7 +124,12 @@ def test_strict_fixed_schedule(interval):
 
 
 def eval_python():
-    path = Path(os.environ.get("EVAL_PYTHON", ".venv-eval/bin/python" if Path(".venv-eval/bin/python").is_file() else sys.executable)).absolute()
+    path = Path(
+        os.environ.get(
+            "EVAL_PYTHON",
+            ".venv-eval/bin/python" if Path(".venv-eval/bin/python").is_file() else sys.executable,
+        )
+    ).absolute()
     assert path.is_file(), "Install requirements-eval.txt in .venv-eval (see README)"
     return str(path)
 
@@ -176,6 +181,11 @@ def test_actual_trackeval_metrics(sequence, tmp_path, switched, empty):
     result = json.loads((run / "summary.json").read_text())
     assert result["throughput_fps"] == 123.4
     assert result["accuracy_status"] == "evaluated"
+    assert result["identification_metrics"] == {
+        "IDF1": result["IDF1"],
+        "IDSW": result["IDSW"],
+        "status": "evaluated_by_trackeval",
+    }
     assert result["IDSW"] == int(switched)
     assert result["MOTA"] == pytest.approx(0 if empty else 93.75 if switched else 100)
     assert result["IDF1"] == pytest.approx(0 if empty else 50 if switched else 100)

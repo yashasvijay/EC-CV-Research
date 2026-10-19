@@ -1,0 +1,20 @@
+{
+  "injected_detector_min_ms": 80.0,
+  "frames": 600,
+  "slo_status": "PASS",
+  "track_frame_fraction": 1.0,
+  "useful_fusion_ratio": 0.9949494949494949,
+  "deadline_miss_fraction": 0.006666666666666667,
+  "throughput_fps": 30.0,
+  "p95_e2e_ms": 20.910568749999996,
+  "p99_e2e_ms": 23.57004507999999,
+  "fallback_attempts": 1,
+  "fallback_attempt_fraction": 0.0016666666666666668,
+  "fallback_attempts_per_second": 0.05004252947688404,
+  "bootstrap_cooldown_frames": 0,
+  "observed_service_mean_ms": 84.33771189393939,
+  "requests_superseded": 0,
+  "process_cpu_percent_mean": 38.50491773718223,
+  "sampled_peak_rss_mib": 201.90625,
+  "run_dir": "results/latency_sweep_v3"
+}

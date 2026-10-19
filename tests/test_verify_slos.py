@@ -23,6 +23,7 @@ def export_data(count=600, latency=5.0):
                 "published_ns": capture + int(latency * 1e6),
                 "capture_to_output_ms": latency,
                 "tracks": 1,
+                "track_detection_age_ms": 100.0,
                 "accepted_detection_update": i < 3,
             }
         )
@@ -213,3 +214,12 @@ def test_legacy_run_counter_has_same_useful_fusion_semantics(contract):
     report = verifier.assess(summary, rows, contract)
     assert report["checks"]["useful_fusion_ratio"]["measured"] == 0.1
     assert report["status"] == "PASS"
+
+
+@pytest.mark.parametrize("age", [None, 300.0, float("nan")])
+def test_missing_or_stale_track_freshness_fails(contract, age):
+    summary, rows = export_data()
+    for row in rows:
+        row["track_detection_age_ms"] = age
+    result = verifier.assess(summary, rows, contract)
+    assert result["checks"]["p95_detection_age_ms"]["status"] == "FAIL"
